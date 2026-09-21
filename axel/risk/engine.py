@@ -3,8 +3,7 @@ Deterministic SectionRiskAgent engine.
 Pure-function evaluation gate: zero LLM dependencies, 100% testable.
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional
+from dataclasses import dataclass
 
 from axel.core.contracts import Proposal, RiskDecision
 from axel.core.types import OrderSide, RiskVerdict, Section
@@ -60,14 +59,14 @@ class SectionRiskAgent:
         proposal: Proposal,
         account_state: AccountState,
         section_state: SectionRiskState,
-        open_positions: Optional[List[OpenPositionInfo]] = None,
+        open_positions: list[OpenPositionInfo] | None = None,
     ) -> RiskDecision:
         """
         Pure function: evaluates all risk rules against the incoming proposal.
         """
-        checks_passed: List[str] = []
-        checks_failed: List[str] = []
-        reasons: List[str] = []
+        checks_passed: list[str] = []
+        checks_failed: list[str] = []
+        reasons: list[str] = []
         open_positions = open_positions or []
 
         # 1. Global Kill-Switch Check (Absolute highest priority)

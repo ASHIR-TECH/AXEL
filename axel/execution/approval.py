@@ -4,8 +4,8 @@ Proposals in live mode (or paper graduation soak) must be explicitly approved be
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from datetime import datetime, timedelta
+from typing import ClassVar
 
 from axel.core.clock import Clock, RealClock
 from axel.core.contracts import Proposal, RiskDecision
@@ -20,8 +20,8 @@ class ApprovalTicket:
     submitted_at: datetime
     expires_at: datetime
     status: ProposalStatus
-    operator_id: Optional[str] = None
-    decision_reason: Optional[str] = None
+    operator_id: str | None = None
+    decision_reason: str | None = None
 
 
 class ApprovalService:
@@ -34,22 +34,22 @@ class ApprovalService:
       - Options: 600 seconds (10 min)
     """
 
-    DEFAULT_TTLS = {
+    DEFAULT_TTLS: ClassVar[dict[Section, int]] = {
         Section.STOCKS: 300,
         Section.CRYPTO: 120,
         Section.PREDICTIONS: 1800,
         Section.OPTIONS: 600,
     }
 
-    def __init__(self, clock: Optional[Clock] = None):
+    def __init__(self, clock: Clock | None = None):
         self.clock = clock or RealClock()
-        self._tickets: Dict[str, ApprovalTicket] = {}
+        self._tickets: dict[str, ApprovalTicket] = {}
 
     def submit_for_approval(
         self,
         proposal: Proposal,
         risk_decision: RiskDecision,
-        custom_ttl_seconds: Optional[int] = None,
+        custom_ttl_seconds: int | None = None,
     ) -> ApprovalTicket:
         """Submit an approved proposal into the human approval queue."""
         if not risk_decision.approved or risk_decision.verdict != RiskVerdict.APPROVED:
@@ -113,7 +113,7 @@ class ApprovalService:
         )
         return ticket
 
-    def sweep_expired(self) -> List[ApprovalTicket]:
+    def sweep_expired(self) -> list[ApprovalTicket]:
         """Checks for expired tickets and transitions them to EXPIRED."""
         now = self.clock.now()
         expired_tickets = []
@@ -128,7 +128,7 @@ class ApprovalService:
                 )
         return expired_tickets
 
-    def get_pending(self) -> List[ApprovalTicket]:
+    def get_pending(self) -> list[ApprovalTicket]:
         """Returns all unexpired, pending tickets."""
         self.sweep_expired()
         return [t for t in self._tickets.values() if t.status == ProposalStatus.PENDING]

@@ -6,7 +6,6 @@ Zero LLM library imports are permitted in `axel/risk/` and `axel/execution/`.
 import ast
 import sys
 from pathlib import Path
-from typing import List, Tuple
 
 FORBIDDEN_LLM_MODULES = {
     "langchain",
@@ -31,13 +30,13 @@ RESTRICTED_DIRS = [
 ]
 
 
-def check_file(file_path: Path) -> List[Tuple[int, str]]:
+def check_file(file_path: Path) -> list[tuple[int, str]]:
     """Scan an individual Python file for forbidden LLM imports."""
     violations = []
     try:
         content = file_path.read_text(encoding="utf-8")
         tree = ast.parse(content, filename=str(file_path))
-    except Exception as e:
+    except (OSError, SyntaxError) as e:
         violations.append((0, f"Failed to parse file: {e}"))
         return violations
 
@@ -47,11 +46,10 @@ def check_file(file_path: Path) -> List[Tuple[int, str]]:
                 root_module = alias.name.split(".")[0]
                 if root_module in FORBIDDEN_LLM_MODULES:
                     violations.append((node.lineno, f"Forbidden direct import: {alias.name}"))
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                root_module = node.module.split(".")[0]
-                if root_module in FORBIDDEN_LLM_MODULES:
-                    violations.append((node.lineno, f"Forbidden from-import: {node.module}"))
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            root_module = node.module.split(".")[0]
+            if root_module in FORBIDDEN_LLM_MODULES:
+                violations.append((node.lineno, f"Forbidden from-import: {node.module}"))
 
     return violations
 

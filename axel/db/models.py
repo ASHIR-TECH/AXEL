@@ -3,15 +3,16 @@ SQLAlchemy ORM models for AXEL.
 Covers core tables, time-series entities, audit trails, and execution states.
 """
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any, Optional
+
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Float,
     ForeignKey,
     Integer,
-    JSON,
     String,
     Text,
 )
@@ -43,8 +44,8 @@ class MarketCalendar(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     venue: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     date: Mapped[str] = mapped_column(String(10), index=True, nullable=False)  # YYYY-MM-DD
-    market_open: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    market_close: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    market_open: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    market_close: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_trading_day: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -60,7 +61,7 @@ class OhlcvBar(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
     ingestion_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
     timeframe: Mapped[str] = mapped_column(String(10), default="1m")  # 1m, 1h, 1d
@@ -69,7 +70,7 @@ class OhlcvBar(Base):
     low: Mapped[float] = mapped_column(Float, nullable=False)
     close: Mapped[float] = mapped_column(Float, nullable=False)
     volume: Mapped[float] = mapped_column(Float, nullable=False)
-    vwap: Mapped[Optional[float]] = mapped_column(Float)
+    vwap: Mapped[float | None] = mapped_column(Float)
 
 
 class NewsItem(Base):
@@ -80,7 +81,7 @@ class NewsItem(Base):
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
     )
     source: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -103,7 +104,7 @@ class SignalModel(Base):
     direction: Mapped[str] = mapped_column(String(10), nullable=False)
     strength: Mapped[float] = mapped_column(Float, nullable=False)
     horizon: Mapped[str] = mapped_column(String(10), default="1d")
-    features_ref: Mapped[Optional[str]] = mapped_column(String(128))
+    features_ref: Mapped[str | None] = mapped_column(String(128))
 
 
 class PanelDecisionModel(Base, TimestampMixin):
@@ -115,9 +116,9 @@ class PanelDecisionModel(Base, TimestampMixin):
     section: Mapped[str] = mapped_column(String(20), nullable=False)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
-    bull_summary: Mapped[Optional[str]] = mapped_column(Text)
-    bear_summary: Mapped[Optional[str]] = mapped_column(Text)
-    synthesis_rationale: Mapped[Optional[str]] = mapped_column(Text)
+    bull_summary: Mapped[str | None] = mapped_column(Text)
+    bear_summary: Mapped[str | None] = mapped_column(Text)
+    synthesis_rationale: Mapped[str | None] = mapped_column(Text)
 
 
 class TradeProposalModel(Base, TimestampMixin):
@@ -138,13 +139,13 @@ class TradeProposalModel(Base, TimestampMixin):
     mode: Mapped[str] = mapped_column(String(10), default="paper")
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     ttl_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    agent_reasoning: Mapped[Optional[str]] = mapped_column(Text)
+    agent_reasoning: Mapped[str | None] = mapped_column(Text)
 
     # Relationships
     risk_decision: Mapped[Optional["RiskDecisionModel"]] = relationship(
         "RiskDecisionModel", back_populates="proposal", uselist=False
     )
-    orders: Mapped[List["OrderModel"]] = relationship("OrderModel", back_populates="proposal")
+    orders: Mapped[list["OrderModel"]] = relationship("OrderModel", back_populates="proposal")
 
 
 class RiskDecisionModel(Base, TimestampMixin):
@@ -159,10 +160,10 @@ class RiskDecisionModel(Base, TimestampMixin):
     verdict: Mapped[str] = mapped_column(String(20), nullable=False)
     approved_qty: Mapped[float] = mapped_column(Float, default=0.0)
     approved_notional_usd: Mapped[float] = mapped_column(Float, default=0.0)
-    binding_limit: Mapped[Optional[str]] = mapped_column(String(64))
-    reasons: Mapped[Optional[Any]] = mapped_column(JSON, default=list)
-    checks_passed: Mapped[Optional[Any]] = mapped_column(JSON, default=list)
-    checks_failed: Mapped[Optional[Any]] = mapped_column(JSON, default=list)
+    binding_limit: Mapped[str | None] = mapped_column(String(64))
+    reasons: Mapped[Any | None] = mapped_column(JSON, default=list)
+    checks_passed: Mapped[Any | None] = mapped_column(JSON, default=list)
+    checks_failed: Mapped[Any | None] = mapped_column(JSON, default=list)
 
     proposal: Mapped["TradeProposalModel"] = relationship(
         "TradeProposalModel", back_populates="risk_decision"
@@ -177,20 +178,20 @@ class OrderModel(Base, TimestampMixin):
     proposal_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("trade_proposals.id"), index=True, nullable=False
     )
-    broker_order_id: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    broker_order_id: Mapped[str | None] = mapped_column(String(64), index=True)
     symbol: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     side: Mapped[str] = mapped_column(String(10), nullable=False)
     qty: Mapped[float] = mapped_column(Float, nullable=False)
     type: Mapped[str] = mapped_column(String(20), default="limit")
-    limit_price: Mapped[Optional[float]] = mapped_column(Float)
-    stop_price: Mapped[Optional[float]] = mapped_column(Float)
+    limit_price: Mapped[float | None] = mapped_column(Float)
+    stop_price: Mapped[float | None] = mapped_column(Float)
     time_in_force: Mapped[str] = mapped_column(String(10), default="day")
     state: Mapped[str] = mapped_column(String(20), index=True, default="submitted")
     filled_qty: Mapped[float] = mapped_column(Float, default=0.0)
-    filled_avg_price: Mapped[Optional[float]] = mapped_column(Float)
+    filled_avg_price: Mapped[float | None] = mapped_column(Float)
 
     proposal: Mapped["TradeProposalModel"] = relationship("TradeProposalModel", back_populates="orders")
-    fills: Mapped[List["FillModel"]] = relationship("FillModel", back_populates="order")
+    fills: Mapped[list["FillModel"]] = relationship("FillModel", back_populates="order")
 
 
 class FillModel(Base):
@@ -201,7 +202,7 @@ class FillModel(Base):
     client_order_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("orders.client_order_id"), index=True, nullable=False
     )
-    broker_fill_id: Mapped[Optional[str]] = mapped_column(String(64), index=True)
+    broker_fill_id: Mapped[str | None] = mapped_column(String(64), index=True)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False)
     side: Mapped[str] = mapped_column(String(10), nullable=False)
     qty: Mapped[float] = mapped_column(Float, nullable=False)
@@ -210,7 +211,7 @@ class FillModel(Base):
     slippage: Mapped[float] = mapped_column(Float, default=0.0)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         index=True,
         nullable=False,
     )
@@ -240,7 +241,7 @@ class EquitySnapshotModel(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         index=True,
         nullable=False,
     )
@@ -262,14 +263,14 @@ class KillSwitchEventModel(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         index=True,
         nullable=False,
     )
     reason: Mapped[str] = mapped_column(String(256), nullable=False)
-    section: Mapped[Optional[str]] = mapped_column(String(20))
+    section: Mapped[str | None] = mapped_column(String(20))
     action_taken: Mapped[str] = mapped_column(String(64), default="HALT_NEW_ORDERS")
-    operator_token_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    operator_token_hash: Mapped[str | None] = mapped_column(String(64))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
@@ -283,7 +284,7 @@ class StrategyRegistryModel(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="candidate")
     parameters_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     parameters_yaml: Mapped[str] = mapped_column(Text, nullable=False)
-    backtest_metrics: Mapped[Optional[Any]] = mapped_column(JSON)
+    backtest_metrics: Mapped[Any | None] = mapped_column(JSON)
 
 
 class AgentRunModel(Base):
@@ -293,7 +294,7 @@ class AgentRunModel(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         index=True,
         nullable=False,
     )
@@ -312,10 +313,10 @@ class AuditLogModel(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         index=True,
         nullable=False,
     )
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     actor: Mapped[str] = mapped_column(String(64), nullable=False)
-    payload: Mapped[Optional[Any]] = mapped_column(JSON)
+    payload: Mapped[Any | None] = mapped_column(JSON)

@@ -4,12 +4,12 @@ Detects position quantity drift, state discrepancies, and unrecorded broker orde
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from datetime import UTC
 
 from axel.core.contracts import Order
 from axel.core.logging import logger
 from axel.core.types import OrderState
-from axel.execution.broker_base import BrokerAdapter, PositionInfo
+from axel.execution.broker_base import BrokerAdapter
 
 
 @dataclass(frozen=True)
@@ -24,10 +24,10 @@ class PositionDrift:
 class ReconciliationReport:
     timestamp: str
     is_healthy: bool
-    position_drifts: List[PositionDrift] = field(default_factory=list)
-    ghost_broker_orders: List[str] = field(default_factory=list)
-    unmatched_db_orders: List[str] = field(default_factory=list)
-    details: List[str] = field(default_factory=list)
+    position_drifts: list[PositionDrift] = field(default_factory=list)
+    ghost_broker_orders: list[str] = field(default_factory=list)
+    unmatched_db_orders: list[str] = field(default_factory=list)
+    details: list[str] = field(default_factory=list)
 
 
 class ReconciliationEngine:
@@ -40,11 +40,11 @@ class ReconciliationEngine:
 
     def reconcile_positions(
         self,
-        db_positions: Dict[str, float],  # symbol -> qty
-    ) -> List[PositionDrift]:
+        db_positions: dict[str, float],  # symbol -> qty
+    ) -> list[PositionDrift]:
         """Compares DB position quantities against live broker positions."""
         broker_positions = {p.symbol: p.qty for p in self.broker.get_positions()}
-        drifts: List[PositionDrift] = []
+        drifts: list[PositionDrift] = []
 
         all_symbols = set(db_positions.keys()).union(set(broker_positions.keys()))
         for sym in all_symbols:
@@ -65,8 +65,8 @@ class ReconciliationEngine:
 
     def reconcile_orders(
         self,
-        active_db_orders: List[Order],
-        broker_open_order_ids: List[str],
+        active_db_orders: list[Order],
+        broker_open_order_ids: list[str],
     ) -> ReconciliationReport:
         """Compares open order states between DB and broker."""
         db_client_ids = {o.client_order_id for o in active_db_orders if o.state not in (
@@ -84,9 +84,9 @@ class ReconciliationEngine:
         if unmatched_db:
             details.append(f"Detected {len(unmatched_db)} active DB orders missing on broker!")
 
-        from datetime import datetime, timezone
+        from datetime import datetime
         report = ReconciliationReport(
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             is_healthy=is_healthy,
             ghost_broker_orders=ghost_orders,
             unmatched_db_orders=unmatched_db,

@@ -3,19 +3,19 @@ Structured JSON logging for AXEL.
 Outputs machine-readable JSON logs for auditability and observability.
 """
 
-from datetime import datetime, timezone
 import json
 import logging
 import sys
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
 
 class JSONFormatter(logging.Formatter):
     """Formats log records as single-line JSON objects."""
 
     def format(self, record: logging.LogRecord) -> str:
-        log_obj: Dict[str, Any] = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+        log_obj: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

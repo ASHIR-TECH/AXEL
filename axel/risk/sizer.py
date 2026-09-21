@@ -2,8 +2,8 @@
 Deterministic position sizer implementing fractional Kelly Criterion with multi-tier risk caps.
 """
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 from typing import Literal
 
 from axel.risk.limits import LIMITS, RiskLimits

@@ -3,9 +3,8 @@ Abstract broker interface and common execution contracts.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from axel.core.contracts import Order, RiskDecision
 from axel.core.types import OrderSide, OrderState, RiskVerdict
@@ -25,15 +24,15 @@ class PositionInfo:
 @dataclass(frozen=True)
 class OrderResult:
     client_order_id: str
-    broker_order_id: Optional[str]
+    broker_order_id: str | None
     state: OrderState
     symbol: str
     side: OrderSide
     qty: float
     filled_qty: float = 0.0
-    filled_avg_price: Optional[float] = None
-    created_at: datetime = datetime.now(timezone.utc)
-    raw_response: Optional[Dict] = None
+    filled_avg_price: float | None = None
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    raw_response: dict | None = None
 
 
 class BrokerAdapter(ABC):
@@ -43,14 +42,12 @@ class BrokerAdapter(ABC):
     """
 
     @abstractmethod
-    def get_account_summary(self) -> Dict[str, float]:
+    def get_account_summary(self) -> dict[str, float]:
         """Returns dict with keys: total_equity, cash, buying_power."""
-        pass
 
     @abstractmethod
-    def get_positions(self) -> List[PositionInfo]:
+    def get_positions(self) -> list[PositionInfo]:
         """Returns list of active broker positions."""
-        pass
 
     def submit_order(self, order: Order, risk_decision: RiskDecision) -> OrderResult:
         """
@@ -70,14 +67,11 @@ class BrokerAdapter(ABC):
     @abstractmethod
     def _execute_order(self, order: Order, risk_decision: RiskDecision) -> OrderResult:
         """Vendor-specific implementation."""
-        pass
 
     @abstractmethod
     def cancel_order(self, client_order_id: str) -> bool:
         """Cancel an open order by client order ID."""
-        pass
 
     @abstractmethod
     def cancel_all_orders(self) -> int:
         """Emergency function: cancel all open working orders. Returns count cancelled."""
-        pass

@@ -3,11 +3,9 @@ Global circuit breaker and kill switch mechanism for AXEL.
 Survives process restarts and enforces manual operator intervention with written reasoning.
 """
 
-from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
-from typing import Optional, Tuple
 
 from axel.core.clock import Clock, RealClock
 from axel.core.config import settings
@@ -24,16 +22,16 @@ class KillSwitch:
 
     def __init__(
         self,
-        state_file_path: Optional[Path] = None,
+        state_file_path: Path | None = None,
         limits: RiskLimits = LIMITS,
-        clock: Optional[Clock] = None,
+        clock: Clock | None = None,
     ):
         self.limits = limits
         self.clock = clock or RealClock()
         self.state_file = state_file_path or Path(".axel_killswitch.json")
         self._halted: bool = False
-        self._halt_reason: Optional[str] = None
-        self._halted_at: Optional[str] = None
+        self._halt_reason: str | None = None
+        self._halted_at: str | None = None
         self._high_water_mark: float = 0.0
         self._load_state()
 
@@ -46,7 +44,7 @@ class KillSwitch:
                 self._halt_reason = data.get("reason")
                 self._halted_at = data.get("halted_at")
                 self._high_water_mark = data.get("high_water_mark", 0.0)
-            except Exception as e:
+            except (OSError, json.JSONDecodeError) as e:
                 logger.error("Failed to load kill switch state file", extra={"error": str(e)})
 
     def _save_state(self) -> None:
@@ -60,7 +58,7 @@ class KillSwitch:
         }
         try:
             self.state_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        except Exception as e:
+        except OSError as e:
             logger.error("Failed to persist kill switch state", extra={"error": str(e)})
 
     @property
@@ -68,7 +66,7 @@ class KillSwitch:
         return self._halted
 
     @property
-    def halt_reason(self) -> Optional[str]:
+    def halt_reason(self) -> str | None:
         return self._halt_reason
 
     @property
@@ -81,7 +79,7 @@ class KillSwitch:
             self._high_water_mark = value
             self._save_state()
 
-    def check_equity(self, current_equity: float) -> Tuple[bool, float]:
+    def check_equity(self, current_equity: float) -> tuple[bool, float]:
         """
         Calculates peak-to-trough drawdown against high water mark.
         Returns: (is_halted, current_drawdown_pct)
@@ -112,7 +110,7 @@ class KillSwitch:
 
         return self._halted, drawdown
 
-    def trip(self, reason: str, section: Optional[str] = None) -> None:
+    def trip(self, reason: str, section: str | None = None) -> None:
         """Activates the kill switch and persists the lock."""
         self._halted = True
         self._halt_reason = reason

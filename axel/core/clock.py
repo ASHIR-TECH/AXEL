@@ -4,8 +4,7 @@ Enables deterministic backtesting, event replay, and offline drill testing.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 
 class Clock(ABC):
@@ -14,19 +13,17 @@ class Clock(ABC):
     @abstractmethod
     def now(self) -> datetime:
         """Return the current time (always timezone-aware UTC)."""
-        pass
 
     @abstractmethod
     def sleep(self, seconds: float) -> None:
         """Sleep or step forward by seconds."""
-        pass
 
 
 class RealClock(Clock):
     """Real wall-clock time provider."""
 
     def now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     def sleep(self, seconds: float) -> None:
         import time
@@ -39,12 +36,12 @@ class SimulatedClock(Clock):
     Can be stepped explicitly without blocking wall-clock execution.
     """
 
-    def __init__(self, initial_time: Optional[datetime] = None):
+    def __init__(self, initial_time: datetime | None = None):
         if initial_time is None:
-            self._current_time = datetime(2026, 1, 1, 9, 30, tzinfo=timezone.utc)
+            self._current_time = datetime(2026, 1, 1, 9, 30, tzinfo=UTC)
         else:
             if initial_time.tzinfo is None:
-                self._current_time = initial_time.replace(tzinfo=timezone.utc)
+                self._current_time = initial_time.replace(tzinfo=UTC)
             else:
                 self._current_time = initial_time
 
@@ -53,7 +50,7 @@ class SimulatedClock(Clock):
 
     def set_time(self, new_time: datetime) -> None:
         if new_time.tzinfo is None:
-            self._current_time = new_time.replace(tzinfo=timezone.utc)
+            self._current_time = new_time.replace(tzinfo=UTC)
         else:
             self._current_time = new_time
 

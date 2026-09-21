@@ -3,8 +3,8 @@ Versioned Pydantic contracts crossing the LLM / Deterministic boundary.
 These models represent the ONLY data structures allowed to cross the trust threshold.
 """
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from axel.core.ids import generate_id
@@ -31,15 +31,15 @@ class Signal(ContractBase):
     Represents raw analysis, NEVER an execution instruction.
     """
     id: str = Field(default_factory=lambda: generate_id("sig"))
-    ts: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    as_of: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ts: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    as_of: datetime = Field(default_factory=lambda: datetime.now(UTC))
     section: Section
     symbol: str
     analyst: str
     direction: Direction
     strength: float = Field(ge=0.0, le=1.0)
     horizon: str = "1d"
-    features_ref: Optional[str] = None
+    features_ref: str | None = None
 
 
 class Proposal(ContractBase):
@@ -48,7 +48,7 @@ class Proposal(ContractBase):
     Proposes a concrete trade for deterministic evaluation by the Risk Engine.
     """
     id: str = Field(default_factory=lambda: generate_id("prop"))
-    ts: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ts: datetime = Field(default_factory=lambda: datetime.now(UTC))
     section: Section
     symbol: str
     side: OrderSide
@@ -59,7 +59,7 @@ class Proposal(ContractBase):
     panel_confidence: float = Field(ge=0.0, le=1.0)
     win_rate: float = Field(default=0.5, ge=0.0, le=1.0)
     avg_win_loss_ratio: float = Field(default=1.5, gt=0.0)
-    rationale_ref: Optional[str] = None
+    rationale_ref: str | None = None
     mode: TradingMode = TradingMode.PAPER
     ttl_seconds: int = Field(default=300, gt=0)
 
@@ -84,15 +84,15 @@ class RiskDecision(ContractBase):
     """
     id: str = Field(default_factory=lambda: generate_id("risk"))
     proposal_id: str
-    ts: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ts: datetime = Field(default_factory=lambda: datetime.now(UTC))
     approved: bool
     verdict: RiskVerdict
     approved_qty: float = Field(default=0.0, ge=0.0)
     approved_notional_usd: float = Field(default=0.0, ge=0.0)
-    binding_limit: Optional[str] = None
-    reasons: List[str] = Field(default_factory=list)
-    checks_passed: List[str] = Field(default_factory=list)
-    checks_failed: List[str] = Field(default_factory=list)
+    binding_limit: str | None = None
+    reasons: list[str] = Field(default_factory=list)
+    checks_passed: list[str] = Field(default_factory=list)
+    checks_failed: list[str] = Field(default_factory=list)
 
 
 class Order(ContractBase):
@@ -105,14 +105,14 @@ class Order(ContractBase):
     side: OrderSide
     qty: float = Field(gt=0.0)
     type: OrderType = OrderType.LIMIT
-    limit_price: Optional[float] = Field(default=None, gt=0.0)
-    stop_price: Optional[float] = Field(default=None, gt=0.0)
+    limit_price: float | None = Field(default=None, gt=0.0)
+    stop_price: float | None = Field(default=None, gt=0.0)
     time_in_force: TimeInForce = TimeInForce.DAY
     state: OrderState = OrderState.PENDING_SUBMIT
-    broker_order_id: Optional[str] = None
+    broker_order_id: str | None = None
     filled_qty: float = Field(default=0.0, ge=0.0)
-    filled_avg_price: Optional[float] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    filled_avg_price: float | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class AllocationProposal(ContractBase):
@@ -121,8 +121,8 @@ class AllocationProposal(ContractBase):
     Subject to deterministic clamp (max 5% per cycle).
     """
     id: str = Field(default_factory=lambda: generate_id("alloc"))
-    ts: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ts: datetime = Field(default_factory=lambda: datetime.now(UTC))
     from_section: Section
     to_section: Section
     pct_of_total: float = Field(gt=0.0, le=1.0)
-    rationale: Optional[str] = None
+    rationale: str | None = None

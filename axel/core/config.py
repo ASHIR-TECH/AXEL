@@ -3,7 +3,8 @@ Configuration management for AXEL using Pydantic Settings.
 Enforces strict validation and safeguards against unintended live trading.
 """
 
-from typing import Literal, Optional
+from typing import Literal
+
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,19 +26,19 @@ class AxelSettings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # Broker: Alpaca (Equities)
-    alpaca_api_key: Optional[SecretStr] = None
-    alpaca_secret_key: Optional[SecretStr] = None
+    alpaca_api_key: SecretStr | None = None
+    alpaca_secret_key: SecretStr | None = None
     alpaca_paper: bool = True
     alpaca_base_url: str = "https://paper-api.alpaca.markets"
 
     # Human-In-The-Loop & Comms
-    telegram_bot_token: Optional[SecretStr] = None
-    telegram_operator_chat_id: Optional[str] = None
+    telegram_bot_token: SecretStr | None = None
+    telegram_operator_chat_id: str | None = None
     operator_rearm_secret: SecretStr = Field(default_factory=lambda: SecretStr("axel-dev-rearm-secret"))
 
     # AI Model Providers (Used ONLY by Agent service)
-    openai_api_key: Optional[SecretStr] = None
-    anthropic_api_key: Optional[SecretStr] = None
+    openai_api_key: SecretStr | None = None
+    anthropic_api_key: SecretStr | None = None
 
     # Hardcoded Risk Defaults (Read-only baseline)
     global_kill_pct: float = 0.10          # 10% account max drawdown

@@ -19,6 +19,6 @@ def generate_client_order_id(proposal_id: str, attempt: int = 1) -> str:
     and use it to reject duplicates.
     """
     clean_prop = str(proposal_id).replace("-", "")
-    content = f"{clean_prop}:{attempt}".encode("utf-8")
+    content = f"{clean_prop}:{attempt}".encode()
     order_hash = hashlib.sha256(content).hexdigest()[:16]
     return f"ord_{clean_prop[:12]}_{order_hash}"

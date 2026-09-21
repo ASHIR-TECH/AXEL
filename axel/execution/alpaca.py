@@ -3,14 +3,11 @@ Alpaca broker adapter for US Equities execution.
 Supports both paper and live endpoints with built-in mock mode for offline testing.
 """
 
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
 import httpx
 
 from axel.core.clock import Clock, RealClock
 from axel.core.config import settings
 from axel.core.contracts import Order, RiskDecision
-from axel.core.logging import logger
 from axel.core.types import OrderSide, OrderState
 from axel.execution.broker_base import BrokerAdapter, OrderResult, PositionInfo
 
@@ -24,11 +21,11 @@ class AlpacaAdapter(BrokerAdapter):
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        secret_key: Optional[str] = None,
-        base_url: Optional[str] = None,
+        api_key: str | None = None,
+        secret_key: str | None = None,
+        base_url: str | None = None,
         mock_mode: bool = False,
-        clock: Optional[Clock] = None,
+        clock: Clock | None = None,
     ):
         self.clock = clock or RealClock()
         self.api_key = api_key or (settings.alpaca_api_key.get_secret_value() if settings.alpaca_api_key else None)
@@ -37,22 +34,22 @@ class AlpacaAdapter(BrokerAdapter):
         self.mock_mode = mock_mode or not (self.api_key and self.secret_key)
 
         # Mock in-memory state for offline drills
-        self._mock_balance: Dict[str, float] = {
+        self._mock_balance: dict[str, float] = {
             "total_equity": 100_000.0,
             "cash": 100_000.0,
             "buying_power": 200_000.0,
         }
-        self._mock_positions: Dict[str, PositionInfo] = {}
-        self._mock_orders: Dict[str, OrderResult] = {}
+        self._mock_positions: dict[str, PositionInfo] = {}
+        self._mock_orders: dict[str, OrderResult] = {}
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         return {
             "APCA-API-KEY-ID": self.api_key or "",
             "APCA-API-SECRET-KEY": self.secret_key or "",
             "Content-Type": "application/json",
         }
 
-    def get_account_summary(self) -> Dict[str, float]:
+    def get_account_summary(self) -> dict[str, float]:
         if self.mock_mode:
             return dict(self._mock_balance)
 
@@ -67,7 +64,7 @@ class AlpacaAdapter(BrokerAdapter):
                 "buying_power": float(data.get("buying_power", 0.0)),
             }
 
-    def get_positions(self) -> List[PositionInfo]:
+    def get_positions(self) -> list[PositionInfo]:
         if self.mock_mode:
             return list(self._mock_positions.values())
 

@@ -3,7 +3,6 @@ Daily loss monitoring and section stop-loss enforcement.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from axel.core.types import Section
 from axel.risk.limits import LIMITS, RiskLimits
@@ -23,7 +22,7 @@ class LossEvaluationResult:
     daily_pnl_pct: float
     stop_threshold_pct: float
     action: str  # "ALLOW", "BLOCK_NEW_ENTRIES", "CANCEL_AND_FLATTEN"
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class LossManager:

@@ -4,17 +4,15 @@ Prevents illegal state shifts (e.g. FILLED -> CANCELED or REJECTED -> FILLED).
 """
 
 from dataclasses import dataclass
-from typing import Dict, Set
 
 from axel.core.types import OrderState
 
 
 class InvalidOrderTransitionError(Exception):
     """Raised when an illegal order state transition is attempted."""
-    pass
 
 
-VALID_TRANSITIONS: Dict[OrderState, Set[OrderState]] = {
+VALID_TRANSITIONS: dict[OrderState, set[OrderState]] = {
     OrderState.PENDING_SUBMIT: {
         OrderState.SUBMITTED,
         OrderState.REJECTED,

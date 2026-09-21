@@ -1,11 +1,10 @@
-import os
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 from axel.core.config import settings
 from axel.db.base import Base
-import axel.db.models  # Ensure all models are registered
 
 config = context.config
 
