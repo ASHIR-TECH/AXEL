@@ -1,6 +1,7 @@
 
 import pytest
 
+from axel.core.config import settings
 from axel.risk.killswitch import KillSwitch
 
 
@@ -33,13 +34,15 @@ def test_killswitch_rearm_validation(tmp_path):
     with pytest.raises(PermissionError):
         ks.re_arm("wrong-secret", "Valid justification provided here", 100_000.0)
 
+    operator_token = settings.operator_rearm_secret.get_secret_value()
+
     # Empty / short reason
     with pytest.raises(ValueError):
-        ks.re_arm("axel-dev-rearm-secret", "too short", 100_000.0)
+        ks.re_arm(operator_token, "too short", 100_000.0)
 
     # Valid re-arm
     ks.re_arm(
-        operator_token="axel-dev-rearm-secret",
+        operator_token=operator_token,
         written_rationale="Incident fully analyzed and approved for restart",
         new_equity_baseline=92_000.0,
     )
