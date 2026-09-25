@@ -3,9 +3,12 @@ Broker-to-database reconciliation engine.
 Detects position quantity drift, state discrepancies, and unrecorded broker orders.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC
+from typing import Any
 
+from axel.comms.alerts import reconciliation_alert
 from axel.core.contracts import Order
 from axel.core.logging import logger
 from axel.core.types import OrderState
@@ -33,10 +36,18 @@ class ReconciliationReport:
 class ReconciliationEngine:
     """
     Periodic job that verifies synchronization between internal DB state and broker reality.
+
+    alert_callback receives Alert objects (axel.comms.alerts.Alert).
+    Typed as Callable[[Any], None] to avoid a hard dependency on the comms layer.
     """
 
-    def __init__(self, broker: BrokerAdapter):
+    def __init__(
+        self,
+        broker: BrokerAdapter,
+        alert_callback: Callable[[Any], None] | None = None,
+    ):
         self.broker = broker
+        self.alert_callback = alert_callback
 
     def reconcile_positions(
         self,
@@ -68,7 +79,10 @@ class ReconciliationEngine:
         active_db_orders: list[Order],
         broker_open_order_ids: list[str],
     ) -> ReconciliationReport:
-        """Compares open order states between DB and broker."""
+        """
+        Compares open order states between DB and broker.
+        Fires a reconciliation_alert via alert_callback when any drift is detected.
+        """
         db_client_ids = {o.client_order_id for o in active_db_orders if o.state not in (
             OrderState.FILLED, OrderState.CANCELED, OrderState.EXPIRED, OrderState.REJECTED
         )}
@@ -98,5 +112,8 @@ class ReconciliationEngine:
                 "RECONCILIATION BREAK DETECTED between internal state and broker.",
                 extra={"report": details},
             )
+            if self.alert_callback:
+                self.alert_callback(reconciliation_alert(ghost_orders, unmatched_db))
 
         return report
+
