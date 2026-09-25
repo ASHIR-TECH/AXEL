@@ -31,6 +31,7 @@ packages = ["axel"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = ["repos", ".venv", ".hypothesis", ".pytest_cache", ".ruff_cache"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

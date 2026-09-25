@@ -39,6 +39,18 @@ class AxelSettings(BaseSettings):
     # AI Model Providers (Used ONLY by Agent service)
     openai_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
+    llm_provider: Literal["none", "groq", "qwen"] = "none"
+    groq_api_key: SecretStr | None = None
+    qwen_api_key: SecretStr | None = None
+    # Override only for an explicitly selected provider; Qwen is region/workspace-specific.
+    llm_base_url: str = ""
+    llm_model: str = ""
+    llm_hourly_budget_usd: float = 0.25
+    llm_daily_budget_usd: float = 1.00
+
+    # Data providers. These are read-only credentials; execution stays isolated.
+    fred_api_key: SecretStr | None = None
+    sec_user_agent: str | None = None
 
     # Hardcoded Risk Defaults (Read-only baseline)
     global_kill_pct: float = 0.10          # 10% account max drawdown
