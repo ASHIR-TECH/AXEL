@@ -1,0 +1,63 @@
+/* ═══════════════════════════════════════════════════════════════
+   AXEL TERMINAL · pipeline.css — [01] n8n-style agent pipeline
+   canvas zones · deterministic boundary · node bubbles · bezier
+   wires · wire labels · animated packets · status tag
+   ═══════════════════════════════════════════════════════════════ */
+
+.canvas-wrap { position: relative; padding: 6px; }
+.zones { position: absolute; inset: 6px; pointer-events: none; }
+.zone { position: absolute; top: 0; bottom: 0; border-radius: var(--r-md); padding: 6px 10px; }
+.zone b { display: block; font-size: 9px; letter-spacing: .22em; }
+.zone span { display: block; font-size: 8.5px; color: var(--faint); letter-spacing: .04em; }
+.zone-agent { left: 0; right: 36%; background: rgba(162,89,255,.05); border: 1px dashed rgba(162,89,255,.28); }
+.zone-agent b { color: var(--purple); }
+.zone-core { left: 64%; right: 0; background: rgba(10,207,131,.045); border: 1px dashed rgba(10,207,131,.25); }
+.zone-core b { color: var(--green); }
+.boundary-line { position: absolute; top: 6px; bottom: 6px; left: 64%; width: 0; border-left: 2px dashed rgba(255,200,87,.4); }
+.boundary-line span { position: absolute; top: 40%; left: -8px; transform: rotate(-90deg) translateX(-50%); transform-origin: left top; font-size: 8px; letter-spacing: .3em; color: var(--yellow); white-space: nowrap; opacity: .8; }
+
+.wires { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); pointer-events: none; overflow: visible; }
+.wire { fill: none; stroke: #37424f; stroke-width: 1.6; }
+.wire.w-rec   { stroke: rgba(26,188,254,.65); stroke-width: 1.8; }
+.wire.w-halt  { stroke: rgba(255,114,98,.75); stroke-dasharray: 5 4; }
+.wire.w-hb    { stroke: rgba(255,200,87,.5); stroke-dasharray: 2 4; }
+.wire.w-obs   { stroke: rgba(143,155,171,.4); stroke-dasharray: 2 5; }
+.wire.flash   { stroke: #6f8194; }
+.wlabel { position: absolute; transform: translate(-50%,-50%); font-size: 8.5px; font-family: var(--mono); color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line); padding: 1px 6px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
+.wlabel.rec { color: var(--blue); border-color: rgba(26,188,254,.4); }
+.wlabel.halt{ color: var(--coral); border-color: rgba(255,114,98,.45); }
+
+#nodes { position: absolute; inset: 6px; pointer-events: none; }
+.nd {
+  position: absolute; width: 126px; transform: translate(-50%,-50%);
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--r-md);
+  display: flex; align-items: center; gap: 8px; padding: 0 9px; cursor: default;
+  pointer-events: auto;
+  box-shadow: 0 4px 14px rgba(0,0,0,.3); transition: transform .18s ease, border-color .18s, box-shadow .18s;
+}
+.nd:hover { border-color: var(--muted); transform: translate(-50%,-50%) scale(1.05); z-index: 5; }
+.nd .ico {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px;
+  display: grid; place-items: center; font-size: 10px; font-weight: 800; font-family: var(--mono); color: #fff;
+}
+.nd .lab { min-width: 0; }
+.nd .lab b { display: block; font-size: 10px; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd .lab span { display: block; font-size: 8px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nd .port { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #465362; border: 1.5px solid var(--bg); }
+.nd .port.in  { left: -4px; top: 50%; transform: translateY(-50%); }
+.nd .port.out { right: -4px; top: 50%; transform: translateY(-50%); }
+.nd.lit { border-color: #7c8ba0; box-shadow: 0 0 0 3px rgba(124,139,160,.15), 0 4px 14px rgba(0,0,0,.3); }
+.nd.halted { border-color: var(--coral); box-shadow: 0 0 0 3px rgba(255,114,98,.18); }
+.nd.axel { background: linear-gradient(135deg, #2a2340, #202a37); border-color: rgba(162,89,255,.6); }
+.nd.axel .lab b { color: #c9a6ff; }
+
+#pkt-layer { position: absolute; inset: 6px; pointer-events: none; overflow: visible; }
+.pkt { position: absolute; width: 9px; height: 9px; border-radius: 50%; margin: -4.5px 0 0 -4.5px;
+  box-shadow: 0 0 8px 2px currentColor; opacity: .95; }
+.pkt::after { content:""; position:absolute; inset:2px; border-radius:50%; background:#fff; opacity:.7; }
+
+/* pipeline status tag (header of panel 01) */
+#pipeline-qn { color: var(--green); background: rgba(10,207,131,.1); }
+#pipeline-qn.halt { color: var(--coral); background: rgba(255,114,98,.12); animation: pulse .8s ease infinite; }
+#pipeline-qn.pause { color: var(--yellow); background: rgba(255,200,87,.1); }
