@@ -1,0 +1,57 @@
+/* ═══════════════════════════════════════════════════════════════
+   AXEL TERMINAL · base.css
+   design tokens + reset + typography
+   Figma brand accents on soft graphite (#F24E1E · #FF7262 · #A259FF
+   · #1ABCFE · #0ACF83 · #FFC857) · Figtree UI · JetBrains Mono data
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg:       #0d1014;
+  --bg-deep:  #0a0c10;
+  --panel:    #151a21;
+  --panel-2:  #1a212b;
+  --card:     #202a37;
+  --line:     #262f3c;
+  --line-soft:#1e2632;
+  --txt:      #e8ebf0;
+  --muted:    #8f9bab;
+  --faint:    #5c6878;
+
+  --orange: #f24e1e;
+  --coral:  #ff7262;
+  --purple: #a259ff;
+  --blue:   #1abcfe;
+  --green:  #0acf83;
+  --yellow: #ffc857;
+
+  --up:   var(--green);
+  --down: var(--coral);
+
+  --ui:   "Figtree", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  --r-lg: 14px; --r-md: 10px; --r-sm: 7px;
+  --shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  background:
+    radial-gradient(1100px 500px at 8% -5%, rgba(162,89,255,.07), transparent 60%),
+    radial-gradient(1100px 500px at 95% 110%, rgba(26,188,254,.06), transparent 60%),
+    var(--bg);
+  color: var(--txt);
+  font-family: var(--ui);
+  font-size: 13px;
+  display: flex; flex-direction: column;
+  min-width: 1280px;
+}
+.mono { font-family: var(--mono); }
+.dim { color: var(--muted); }
+.up  { color: var(--up); } .down { color: var(--down); }
+.ok  { color: var(--green); } .bad { color: var(--coral); }
+b, strong { font-weight: 600; }
+
+@keyframes pulse { 50% { opacity: .35; } }
