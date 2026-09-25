@@ -25,7 +25,7 @@ def test_panel_rejects_unvalidated_strategy() -> None:
 
 
 def test_selected_provider_requires_its_own_key() -> None:
-    settings = AxelSettings(llm_provider="qwen", llm_model="qwen-test")
+    settings = AxelSettings(llm_provider="qwen", qwen_api_key=None, llm_model="qwen-test")
     with pytest.raises(ValueError, match="QWEN_API_KEY"):
         gateway_from_settings(settings)
 
