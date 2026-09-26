@@ -1,10 +1,4 @@
 # AXEL
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-AXEL VENTURE 
-=======
->>>>>>> Collins
 
 **Autonomous Multi-Agent Trading & Betting System** — a hierarchical agent framework that evaluates and executes trading decisions across five market sections — **Stocks, Options, Crypto, Forex, Bets/Predictions** — under a single prime overseer named *Axel*.
 
@@ -560,9 +554,5 @@ flowchart LR
 
 ## Disclaimer
 
-<<<<<<< HEAD
 This project is **software engineering structure only**. It is not financial or legal advice. The financial projection in the PRD (ch. 9) is a hypothetical model built on stated, unproven assumptions. **Automated trading can lose money even when validated.** No strategy is trusted with capital until it has been validated per the methodology in §8. Use at your own risk.
-=======
-This project is **software engineering structure only**. It is not financial or legal advice. The financial projection in the PRD (ch. 9) is a hypothetical model built on stated, unproven assumptions. **Automated trading can lose money even when validated.** No strategy is trusted with capital until it has been validated per the methodology in §8. Use at your own risk.
->>>>>>> Stashed changes
->>>>>>> Collins
+
