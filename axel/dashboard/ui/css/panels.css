@@ -57,8 +57,8 @@
 .sec-table th:first-child, .sec-table td:first-child { text-align: left; }
 .sec-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); font-family: var(--mono); font-size: 12px; text-align: right; }
 .sec-table td:first-child { font-family: var(--ui); font-weight: 600; font-size: 12.5px; }
-.sec-table tbody tr { transition: background .2s; }
-.sec-table tbody tr:hover td { background: rgba(255,255,255,.02); }
+.sec-table tbody tr { transition: background .2s; cursor: pointer; }
+.sec-table tbody tr:hover td { background: rgba(255,255,255,.035); }
 .state-chip { font-size: 9px; font-weight: 700; letter-spacing: .08em; padding: 2.5px 9px; border-radius: 999px; }
 .state-chip.TRADING { color: var(--green); background: rgba(10,207,131,.12); }
 .state-chip.BLOCKED { color: var(--yellow); background: rgba(255,200,87,.12); }
@@ -83,8 +83,10 @@
 .kcards { flex: 1; overflow: hidden; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
 .kcard {
   background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px;
-  font-size: 10.5px; animation: card-in .35s cubic-bezier(.2,.9,.3,1.2);
+  font-size: 10.5px; cursor: pointer; transition: border-color .15s, transform .15s;
+  animation: card-in .35s cubic-bezier(.2,.9,.3,1.2);
 }
+.kcard:hover { border-color: var(--muted); transform: translateY(-1px); }
 @keyframes card-in { from { opacity: 0; transform: translateY(-8px) scale(.96); } }
 .kcard .kc-top { display: flex; justify-content: space-between; font-weight: 700; }
 .kcard .kc-top .side-L, .kcard .kc-top .side-BUY { color: var(--green); }
@@ -104,8 +106,9 @@
 .sm-c {
   border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line-soft);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  font-family: var(--mono); transition: all .35s cubic-bezier(.2,.9,.3,1.1); min-height: 26px;
+  font-family: var(--mono); transition: all .35s cubic-bezier(.2,.9,.3,1.1); min-height: 26px; cursor: pointer;
 }
+.sm-c:hover { border-color: var(--muted); }
 .sm-c .d { font-size: 11px; font-weight: 700; }
 .sm-c .c { font-size: 8.5px; color: var(--faint); }
 .sm-c.L { background: rgba(10,207,131,.10); border-color: rgba(10,207,131,.4); } .sm-c.L .d { color: var(--green); }
@@ -119,7 +122,7 @@
 .lchip:hover { color: var(--txt); }
 .lchip.active { color: #fff; background: var(--purple); border-color: transparent; }
 .log-body { padding: 0; margin: 6px 8px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-md); background: var(--bg-deep); min-width: 0; }
-#log-tape { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column-reverse; padding: 6px 10px; font-family: var(--mono); font-size: 10.5px; line-height: 1.7; scrollbar-width: thin; scrollbar-color: #33404f transparent; }
+#log-tape { flex: 1; min-width: 0; overflow: auto; display: flex; flex-direction: column-reverse; align-items: flex-start; padding: 6px 10px; font-family: var(--mono); font-size: 10.5px; line-height: 1.7; scrollbar-width: thin; scrollbar-color: #33404f transparent; }
 #log-tape::-webkit-scrollbar { width: 9px; height: 9px; }
 #log-tape::-webkit-scrollbar-track { background: transparent; }
 #log-tape::-webkit-scrollbar-thumb { background: #33404f; border-radius: 6px; border: 2px solid var(--bg-deep); }
