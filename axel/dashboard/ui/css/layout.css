@@ -91,7 +91,8 @@ kbd {
 
 /* ══════════ PAGES (fixed, non-scrolling) ══════════ */
 .page { flex: 1; min-height: 0; min-width: 0; display: none; padding: 10px; gap: 10px; }
-.page.active { display: grid; }
+.page.active { display: grid; animation: page-in .3s cubic-bezier(.2,.8,.3,1); }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px) scale(.995); } }
 #p1 { grid-template-columns: repeat(8, 1fr); grid-template-rows: minmax(0,1.35fr) minmax(0,1fr); }
 #p2 { grid-template-columns: repeat(12, 1fr); grid-template-rows: minmax(0,1.15fr) minmax(0,1fr); }
 
@@ -105,8 +106,9 @@ kbd {
 .panel {
   background: var(--panel); border: 1px solid var(--line-soft); border-radius: var(--r-lg);
   display: flex; flex-direction: column; min-width: 0; min-height: 0; box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow: hidden; transition: border-color .25s, box-shadow .25s;
 }
+.panel:hover { border-color: var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.45); }
 .p-head {
   flex-shrink: 0; display: flex; align-items: center; gap: 9px;
   padding: 9px 12px; border-bottom: 1px solid var(--line-soft);
@@ -127,6 +129,19 @@ kbd {
 .tbl td { padding: 4px 6px; border-bottom: 1px solid var(--line-soft); font-family: var(--mono); font-size: 11px; }
 .tbl td:first-child { font-family: var(--ui); }
 .tbl td:last-child, .tbl th:last-child { text-align: right; }
+
+/* ══════════ INSPECTOR POPOVER (js/ui/tip.js) ══════════ */
+#tip {
+  position: fixed; z-index: 50; min-width: 172px; max-width: 270px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 14px 38px rgba(0,0,0,.55); padding: 9px 11px; font-size: 11px;
+  opacity: 0; transform: translateY(5px) scale(.98); transition: opacity .16s, transform .16s cubic-bezier(.2,1.4,.4,1);
+}
+#tip.in { opacity: 1; transform: none; }
+#tip b { display: block; font-size: 12px; margin-bottom: 6px; }
+#tip .tr { display: flex; justify-content: space-between; gap: 14px; padding: 3px 0; border-top: 1px solid var(--line-soft); }
+#tip .tr span { color: var(--faint); }
+#tip .tr em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--txt); text-align: right; }
 
 /* ══════════ FOOTER ══════════ */
 #bottombar { flex-shrink: 0; display: flex; gap: 20px; padding: 5px 16px; border-top: 1px solid var(--line-soft); font-size: 10px; color: var(--faint); background: var(--bg-deep); }
