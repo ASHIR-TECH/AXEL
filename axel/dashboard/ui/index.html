@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AXEL · TERMINAL — Autonomous Multi-Agent Trading &amp; Betting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/pipeline.css">
+<link rel="stylesheet" href="css/panels.css">
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<header id="topbar">
+  <div class="brand">
+    <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
+    <span class="brand-name">AXEL</span>
+    <span class="brand-sub">Multi-Section Agent Terminal</span>
+  </div>
+
+  <nav id="tabs">
+    <button class="tab active" data-page="p1"><kbd>1</kbd> DESK <span>pipeline · portfolio · risk</span></button>
+    <button class="tab" data-page="p2"><kbd>2</kbd> TRADE DESK <span>orders · signals · logs</span></button>
+  </nav>
+
+  <div class="head-right">
+    <div class="lamps">
+      <span class="lamp"><i class="dot ok" id="lamp-core"></i>core</span>
+      <span class="lamp"><i class="dot ok" id="lamp-agent"></i>agent</span>
+      <span class="lamp"><i class="dot ok" id="lamp-wd"></i>watchdog</span>
+      <span class="lamp"><i class="dot ok" id="lamp-ci"></i>lint</span>
+    </div>
+    <div class="mode-chip" id="mode-chip"><span>MODE</span><b>PAPER</b></div>
+    <div class="aum-chip"><span>AUM</span><b id="head-aum">$10,000</b><em id="head-day">+0.00%</em></div>
+    <div class="clock" id="clock">--:--:--<small id="clock-date"></small></div>
+  </div>
+</header>
+
+<!-- ══════════ HALT BANNER ══════════ -->
+<div id="halt-banner" hidden>⚠ GLOBAL HALT — KILL-SWITCH ENGAGED · ALL SECTIONS FROZEN · RESUME IS MANUAL ONLY (F4)</div>
+
+<!-- ══════════ KEY STRIP ══════════ -->
+<div id="keystrip">
+  <div class="keys">
+    <button class="fkey" data-action="halt-drill"><kbd>F1</kbd> Kill Drill</button>
+    <button class="fkey" data-action="pause"><kbd>F2</kbd> Freeze</button>
+    <button class="fkey" data-action="speed"><kbd>F3</kbd> Speed ×<i id="speed-val">1</i></button>
+    <button class="fkey" data-action="resume"><kbd>F4</kbd> Resume</button>
+  </div>
+  <div class="tape"><div class="tape-track" id="tape-track"></div></div>
+</div>
+
+<!-- ═════════════════════════ PAGE 1 — DESK ═════════════════════════ -->
+<main class="page active" id="p1">
+
+  <!-- [01] PIPELINE — n8n style -->
+  <section class="panel c1 span6 r1" id="pnl-pipeline">
+    <div class="p-head">
+      <span class="p-num">01</span> Agent Pipeline
+      <span class="p-tag" id="pipeline-qn">running</span>
+      <span class="p-note">every arrow crossing the boundary is a typed DB record — never a function call</span>
+    </div>
+    <div class="p-body canvas-wrap">
+      <div class="zones">
+        <div class="zone zone-agent"><b>AGENT SERVICE</b><span>untrusted · LLM · no broker keys</span></div>
+        <div class="zone zone-core"><b>TRADING CORE</b><span>deterministic · CI-banned LLM imports</span></div>
+      </div>
+      <svg class="wires" id="wires"></svg>
+      <div class="boundary-line" id="boundary-line"><span>DETERMINISTIC BOUNDARY</span></div>
+      <div id="nodes"></div>
+      <div id="pkt-layer"></div>
+    </div>
+  </section>
+
+  <!-- [02] PORTFOLIO -->
+  <section class="panel c7 span2 r1" id="pnl-portfolio">
+    <div class="p-head"><span class="p-num">02</span> Portfolio <span class="p-tag green">live</span></div>
+    <div class="p-body pf-body">
+      <div class="pf-hero">
+        <div class="pf-aum"><span>ASSETS UNDER MANAGEMENT</span><b id="pf-aum">$10,000</b></div>
+        <div class="pf-day"><span>TODAY</span><b id="pf-day">+$0.00</b><em id="pf-day-pct">+0.00%</em></div>
+      </div>
+      <div class="pf-grid">
+        <div><span>REALIZED P&amp;L</span><b id="pf-real">$0</b></div>
+        <div><span>UNREALIZED</span><b id="pf-unreal">$0</b></div>
+        <div><span>TRADES TODAY</span><b id="pf-trades">0</b></div>
+        <div><span>WIN RATE</span><b id="pf-win">—</b></div>
+      </div>
+      <div class="pf-cap"><span class="kf-title">CAPITAL ALLOCATION</span><div id="alloc-bars"></div></div>
+      <div class="pf-hold"><span class="kf-title">OPEN POSITIONS</span>
+        <table class="tbl"><thead><tr><th>SYMBOL</th><th>QTY</th><th>VALUE</th><th>P&amp;L</th></tr></thead>
+        <tbody id="hold-tb"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- [03] RISK GATE -->
+  <section class="panel c1 span3 r2" id="pnl-risk">
+    <div class="p-head"><span class="p-num">03</span> Risk Gate <span class="p-tag">evaluate()</span><span class="p-note" id="rg-count">0 proposals</span></div>
+    <div class="p-body risk-body">
+      <div class="rg-proposal" id="rg-proposal"><span class="wait">awaiting proposal…</span></div>
+      <ol class="rg-checks" id="rg-checks">
+        <li data-k="kill"><span class="ck"></span>Kill-switch · drawdown &lt; 10%</li>
+        <li data-k="stop"><span class="ck"></span>Section daily stop · &gt; −3%</li>
+        <li data-k="conf"><span class="ck"></span>Panel confidence ≥ 0.30</li>
+        <li data-k="pos"><span class="ck"></span>Open positions &lt; 10</li>
+        <li data-k="rr"><span class="ck"></span>Reward:risk 1.5 – 4R</li>
+        <li data-k="corr"><span class="ck"></span>Correlation &lt; 0.85</li>
+        <li data-k="kelly"><span class="ck"></span>Kelly f* &gt; 0 · size &gt; 0</li>
+      </ol>
+      <div class="rg-verdict" id="rg-verdict"><span>verdict —</span></div>
+    </div>
+  </section>
+
+  <!-- [04] SECTIONS -->
+  <section class="panel c4 span5 r2" id="pnl-sections">
+    <div class="p-head"><span class="p-num">04</span> Sections <span class="p-note">paper · $10,000 start · 45/25/15/10/5</span></div>
+    <div class="p-body">
+      <table class="sec-table" id="sec-table">
+        <thead><tr><th>SECTION</th><th>NAV</th><th>Δ DAY</th><th>POS</th><th>EXPO</th><th>TREND</th><th>STATE</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═════════════════════════ PAGE 2 — TRADE DESK ═════════════════════════ -->
+<main class="page" id="p2">
+
+  <!-- [05] MOMENTUM / EQUITY -->
+  <section class="panel c1 span4 r1" id="pnl-equity">
+    <div class="p-head"><span class="p-num">05</span> Momentum <span class="p-tag green">equity</span><span class="p-note">vs high-water · −10% trip line</span></div>
+    <div class="p-body chart-body"><canvas id="equity-chart"></canvas>
+      <div class="chart-foot"><span id="eq-last">—</span><span id="eq-hwm">—</span><span id="eq-lo">—</span></div>
+    </div>
+  </section>
+
+  <!-- [06] ORDER LIFECYCLE -->
+  <section class="panel c5 span4 r1" id="pnl-orders">
+    <div class="p-head"><span class="p-num">06</span> Order Lifecycle <span class="p-tag">FSM</span><span class="p-note">submit guarded: only APPROVED decisions can open an order</span></div>
+    <div class="p-body kanban-body">
+      <div class="kanban" id="kanban">
+        <div class="kcol" data-st="NEW"><header>NEW <i>0</i></header><div class="kcards"></div></div>
+        <div class="kcol" data-st="SUBMITTED"><header>SUBMITTED <i>0</i></header><div class="kcards"></div></div>
+        <div class="kcol" data-st="PARTIAL"><header>PARTIAL <i>0</i></header><div class="kcards"></div></div>
+        <div class="kcol kterm" data-st="FILLED"><header>FILLED <i>0</i></header><div class="kcards"></div></div>
+        <div class="kcol kdead" data-st="DEAD"><header>CANCELED / REJECTED <i>0</i></header><div class="kcards"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- [09] COMMS & ALERTS -->
+  <section class="panel c9 span4 r1" id="pnl-comms">
+    <div class="p-head"><span class="p-num">09</span> Comms &amp; Alerts <span class="p-tag orange">phase 4</span></div>
+    <div class="p-body comms-body">
+      <div class="kf-title">OUTBOUND ALERTS</div>
+      <ul id="alert-list" class="alert-list"></ul>
+      <div class="kf-title">HITL APPROVAL TICKETS <small class="dim">(live mode · per-section TTL)</small></div>
+      <table class="tbl"><thead><tr><th>TICKET</th><th>SEC</th><th>TTL</th><th>STATE</th></tr></thead><tbody id="appr-tb"></tbody></table>
+    </div>
+  </section>
+
+  <!-- [07] SIGNAL MATRIX -->
+  <section class="panel c1 span4 r2" id="pnl-signals">
+    <div class="p-head"><span class="p-num">07</span> Analyst Signals <span class="p-note">direction · strength 1–3 · confidence</span></div>
+    <div class="p-body matrix-body"><div id="sig-matrix"></div></div>
+  </section>
+
+  <!-- [08] LOGS -->
+  <section class="panel c5 span8 r2" id="pnl-logs">
+    <div class="p-head"><span class="p-num">08</span> Decision Log <span class="p-tag" id="log-rate">0/min</span>
+      <span class="logchips" id="logchips">
+        <button class="lchip active" data-ch="ALL">all</button>
+        <button class="lchip" data-ch="RISK">risk</button>
+        <button class="lchip" data-ch="EXEC">execution</button>
+        <button class="lchip" data-ch="DB">database</button>
+        <button class="lchip" data-ch="CHAT">agent chat</button>
+        <button class="lchip" data-ch="ANALYSIS">analysis</button>
+        <button class="lchip" data-ch="SYS">system</button>
+      </span>
+    </div>
+    <div class="p-body log-body"><div id="log-tape"></div></div>
+  </section>
+
+  <!-- [10] SYSTEM OPS -->
+  <section class="panel c9 span4 r2" id="pnl-ops">
+    <div class="p-head"><span class="p-num">10</span> System Ops</div>
+    <div class="p-body ops-body">
+      <div class="kf-title">BUILD PHASES</div>
+      <div id="phase-row" class="phase-row"></div>
+      <div class="kf-title">LLM BUDGET GUARD</div>
+      <div class="budget"><div class="budget-fill" id="budget-fill"></div><span id="budget-txt">$0 / $50</span></div>
+      <div class="kf-title">DATA INGEST FRESHNESS</div>
+      <table class="tbl"><tbody id="ingest-tb"></tbody></table>
+      <div class="ops-mini">
+        <div><span>KILL DRILL</span><b id="op-drill" class="ok">PASSED · 3d ago</b></div>
+        <div><span>RECOVERY DRILL</span><b id="op-recover" class="ok">PASSED · 9d ago</b></div>
+        <div><span>UPTIME</span><b id="op-uptime">0h</b></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer id="bottombar">
+  <span>AXEL v2 · deterministic core live · <b class="dim">agent feed simulated in this draft</b></span>
+  <span class="right"><a href="../../../README.md">README</a> · <a href="../../../phases/how-the-app-works.md">HOW-IT-WORKS</a> · not financial advice</span>
+</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

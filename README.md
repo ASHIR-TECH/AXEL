@@ -1,4 +1,10 @@
 # AXEL
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+AXEL VENTURE 
+=======
+>>>>>>> Collins
 
 **Autonomous Multi-Agent Trading & Betting System** — a hierarchical agent framework that evaluates and executes trading decisions across five market sections — **Stocks, Options, Crypto, Forex, Bets/Predictions** — under a single prime overseer named *Axel*.
 
@@ -147,6 +153,10 @@ axel/                      # the AXEL package
 ├── agents/                # UNTRUSTED · LLM side (next build phase)
 ├── data/                  # providers, ingestion, backtester, validation gate (planned)
 └── dashboard/             # read-only decision log / Grafana (planned)
+<<<<<<< HEAD
+=======
+    └── ui/                # ★ Bloomberg-style terminal dashboard (draft, zero-build static UI)
+>>>>>>> Collins
 
 migrations/                # Alembic (schema can also be created via init_db())
 scripts/
@@ -473,6 +483,12 @@ make check            # ruff → boundary lint → pytest
 
 # Boundary lint — fails with exit 1 if any LLM import leaks into risk/ or execution/
 .venv/bin/python scripts/check_no_llm_imports.py
+<<<<<<< HEAD
+=======
+
+# Terminal dashboard draft (simulated feed, zero build) → http://localhost:8765
+python -m http.server 8765 -d axel/dashboard/ui
+>>>>>>> Collins
 ```
 
 ### Test suite
@@ -544,4 +560,9 @@ flowchart LR
 
 ## Disclaimer
 
+<<<<<<< HEAD
 This project is **software engineering structure only**. It is not financial or legal advice. The financial projection in the PRD (ch. 9) is a hypothetical model built on stated, unproven assumptions. **Automated trading can lose money even when validated.** No strategy is trusted with capital until it has been validated per the methodology in §8. Use at your own risk.
+=======
+This project is **software engineering structure only**. It is not financial or legal advice. The financial projection in the PRD (ch. 9) is a hypothetical model built on stated, unproven assumptions. **Automated trading can lose money even when validated.** No strategy is trusted with capital until it has been validated per the methodology in §8. Use at your own risk.
+>>>>>>> Stashed changes
+>>>>>>> Collins
