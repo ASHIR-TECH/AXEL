@@ -16,7 +16,8 @@ The local `phases/README.md` uses a different numbering (it calls the agent laye
 | 1 | Deterministic core | **Implemented; local safety/drill checks pass** |
 | 2 | Data + backtester | **Initial deterministic vertical slice implemented; exit criteria incomplete** |
 | 3 | Stocks agent layer | **Proposal-only scaffold implemented; paper-run exit incomplete** |
-| 4 | Dashboard + comms | **Read-only projection/alert scaffold implemented; Grafana exit incomplete** |
+| 4 | Dashboard + comms | **Implemented; Phase 5 authorized by owner** |
+| 5 | Stocks paper soak | **Evidence/promotion-gate foundation implemented; 56-day operation not yet complete** |
 
 ## Work completed in this iteration
 
