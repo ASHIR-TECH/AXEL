@@ -7,6 +7,7 @@ rejection of new proposals while halted, and secure operator re-arm procedure.
 import sys
 from pathlib import Path
 
+from axel.core.config import settings
 from axel.core.contracts import Proposal
 from axel.core.types import OrderSide, RiskVerdict, Section, TradingMode
 from axel.execution.alpaca import AlpacaAdapter
@@ -107,7 +108,7 @@ def main() -> int:
     print("\n[Step 5] Testing re-arm with empty written justification...")
     try:
         kill_switch.re_arm(
-            operator_token="axel-dev-rearm-secret",
+            operator_token=settings.operator_rearm_secret.get_secret_value(),
             written_rationale="short",
             new_equity_baseline=89_000.0,
         )
@@ -118,7 +119,7 @@ def main() -> int:
     # Step 6: Perform authorized operator re-arm
     print("\n[Step 6] Executing authorized operator re-arm with valid token & written rationale...")
     kill_switch.re_arm(
-        operator_token="axel-dev-rearm-secret",
+        operator_token=settings.operator_rearm_secret.get_secret_value(),
         written_rationale="Incident reviewed by operator: Volatility spike absorbed, re-baselining equity.",
         new_equity_baseline=89_000.0,
     )
