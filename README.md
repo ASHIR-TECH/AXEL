@@ -147,10 +147,7 @@ axel/                      # the AXEL package
 ├── agents/                # UNTRUSTED · LLM side (next build phase)
 ├── data/                  # providers, ingestion, backtester, validation gate (planned)
 └── dashboard/             # read-only decision log / Grafana (planned)
-<<<<<<< HEAD
-=======
     └── ui/                # ★ Bloomberg-style terminal dashboard (draft, zero-build static UI)
->>>>>>> Collins
 
 migrations/                # Alembic (schema can also be created via init_db())
 scripts/
@@ -477,12 +474,9 @@ make check            # ruff → boundary lint → pytest
 
 # Boundary lint — fails with exit 1 if any LLM import leaks into risk/ or execution/
 .venv/bin/python scripts/check_no_llm_imports.py
-<<<<<<< HEAD
-=======
 
 # Terminal dashboard draft (simulated feed, zero build) → http://localhost:8765
 python -m http.server 8765 -d axel/dashboard/ui
->>>>>>> Collins
 ```
 
 ### Test suite
