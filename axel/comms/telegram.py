@@ -1,18 +1,3 @@
-"""
-Telegram alert transport for AXEL.
-
-Delivers Alert payloads to a configured operator chat via the Telegram Bot API.
-This module has NO imports from axel/risk/ or axel/execution/ — it is a pure
-delivery wrapper and must remain on the correct side of the architectural boundary.
-
-Usage:
-    from axel.comms.telegram import TelegramTransport
-    from axel.comms.alerts import halt_alert
-
-    transport = TelegramTransport(bot_token="...", chat_id="...")
-    transport.send(halt_alert("10% drawdown breached"))
-"""
-
 import json
 import logging
 from dataclasses import dataclass
@@ -119,3 +104,18 @@ def transport_from_settings() -> "TelegramTransport | None":
         chat_id=settings.telegram_operator_chat_id,
         dry_run=(settings.environment == "paper"),
     )
+
+"""
+Telegram alert transport for AXEL.
+
+Delivers Alert payloads to a configured operator chat via the Telegram Bot API.
+This module has NO imports from axel/risk/ or axel/execution/ — it is a pure
+delivery wrapper and must remain on the correct side of the architectural boundary.
+
+Usage:
+    from axel.comms.telegram import TelegramTransport
+    from axel.comms.alerts import halt_alert
+
+    transport = TelegramTransport(bot_token="...", chat_id="...")
+    transport.send(halt_alert("10% drawdown breached"))
+"""
