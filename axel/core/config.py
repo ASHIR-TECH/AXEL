@@ -1,8 +1,3 @@
-"""
-Configuration management for AXEL using Pydantic Settings.
-Enforces strict validation and safeguards against unintended live trading.
-"""
-
 from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
@@ -85,3 +80,8 @@ class AxelSettings(BaseSettings):
 
 
 settings = AxelSettings()
+
+"""
+Configuration management for AXEL using Pydantic Settings.
+Enforces strict validation and safeguards against unintended live trading.
+"""
