@@ -1,20 +1,6 @@
-"""
-Side-effect-free alert payload construction for Phase 4 dashboard & comms.
-
-Alert kinds cover all required triggers:
-  HALT               — global kill switch tripped
-  STALE_DATA         — no new market data / equity snapshot within threshold
-  HEARTBEAT_SILENCE  — primary service liveness check failed
-  RECONCILIATION_DRIFT — DB vs broker state mismatch detected
-  LLM_BUDGET_BREACH  — hourly or daily LLM spend limit exceeded
-
-Transport is configured outside AXEL core; see axel/comms/telegram.py.
-"""
-
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-# ── Alert kind constants ────────────────────────────────────────────────────
 
 KIND_HALT = "halt"
 KIND_STALE_DATA = "stale_data"
@@ -26,8 +12,6 @@ SEVERITY_CRITICAL = "critical"
 SEVERITY_WARNING = "warning"
 SEVERITY_INFO = "info"
 
-
-# ── Alert dataclass ─────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
 class Alert:
