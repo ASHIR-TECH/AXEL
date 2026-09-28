@@ -20,7 +20,7 @@ class Completion:
 class OpenAICompatibleGateway:
     def __init__(self, api_key: str, base_url: str, model: str, budget: LlmBudgetGuard, client: httpx.Client | None = None) -> None:
         if not api_key or not model:
-            raise ValueError("API key and model are required")
+            raise ValueError("The API key and model are required")
         self._headers = {"Authorization": f"Bearer {api_key}"}
         self._url, self._model, self._budget = f"{base_url.rstrip('/')}/chat/completions", model, budget
         self._client = client or httpx.Client(timeout=30)
