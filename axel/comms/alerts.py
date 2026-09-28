@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-
 KIND_HALT = "halt"
 KIND_STALE_DATA = "stale_data"
 KIND_HEARTBEAT_SILENCE = "heartbeat_silence"
