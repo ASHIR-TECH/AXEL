@@ -18,7 +18,7 @@ class LlmBudgetGuard:
         hourly = sum(cost for ts, cost in self.charges if ts >= now - timedelta(hours=1))
         daily = sum(cost for _, cost in self.charges)
         if hourly + cost_usd > self.hourly_cap_usd:
-            raise PermissionError("LLM hourly budget exceeded")
+            raise PermissionError("The LLM hourly budget currently exceeded")
         if daily + cost_usd > self.daily_cap_usd:
-            raise PermissionError("LLM daily budget exceeded")
+            raise PermissionError("LLM daily budget has been exceeded")
         self.charges.append((now, cost_usd))
