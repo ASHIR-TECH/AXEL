@@ -1,8 +1,3 @@
-"""
-Injectable Clock abstraction for AXEL.
-Enables deterministic backtesting, event replay, and offline drill testing.
-"""
-
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime, timedelta
 
