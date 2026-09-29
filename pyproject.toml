@@ -21,6 +21,9 @@ dev = [
     "hypothesis>=6.100.0",
     "ruff>=0.4.0",
 ]
+telegram = [
+    "telethon>=1.34",
+]
 
 [build-system]
 requires = ["hatchling"]

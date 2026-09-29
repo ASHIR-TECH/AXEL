@@ -36,6 +36,13 @@ htmlcov/
 .env.*
 !.env.example
 
+# Cloned reference repositories (third-party; may contain credentials)
+repos/
+
+# Telethon / Telegram session files (CRITICAL: grant account access)
+*.session
+*.session-journal
+
 # Databases & local state
 *.db
 *.sqlite
