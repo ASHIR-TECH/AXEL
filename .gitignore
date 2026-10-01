@@ -59,3 +59,6 @@ scratch/
 .idea/
 .vscode/
 *.swp
+
+# Phase 2 live-provider verification working directory (regenerated, never committed)
+.phase2_verify/
