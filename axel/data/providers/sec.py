@@ -47,7 +47,13 @@ def parse_filings(
         if not accession:
             continue
         filed = row["filingDate"] or row["reportDate"]
-        period = row["reportDate"] or filed
+        # ``reportDate`` is the period a filing *covers*, which is not always a
+        # moment that has happened yet: a proxy statement (DEF 14A) is filed
+        # weeks before the meeting date it reports on. Using it verbatim as the
+        # economic event would place the event after the filing's own
+        # availability and read as look-ahead. The event cannot precede the
+        # public filing, so clamp it; the true reportDate stays in ``fields``.
+        period = min(row["reportDate"] or filed, filed)
         records.append(
             FilingRecord(
                 issuer_id=issuer,
