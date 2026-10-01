@@ -89,6 +89,57 @@ def test_sec_fetch_filings_use_public_filing_time() -> None:
     assert record.available_at > record.event_time
 
 
+def test_sec_proxy_statement_is_filed_before_its_report_date() -> None:
+    """DEF 14A is filed weeks before the meeting it reports on (real EDGAR case)."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "filings": {
+                    "recent": {
+                        "form": ["DEF 14A"],
+                        "filingDate": ["2026-01-08"],
+                        "reportDate": ["2026-02-24"],
+                        "accessionNumber": ["0001308179-26-000008"],
+                        "primaryDocument": ["def14a.htm"],
+                        "primaryDocDescription": ["DEF 14A"],
+                    }
+                }
+            },
+        )
+
+    provider = SecEdgar("Analyst analyst@example.com", _client(handler))
+    record = provider.fetch_filings("320193").records[0]
+
+    assert record.available_at == record.event_time
+    assert record.available_at.isoformat() == "2026-01-08T00:00:00+00:00"
+    assert "2026-02-24" in dict(record.fields)["reportDate"]
+
+
+def test_sec_quarterly_keeps_the_earlier_report_date() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "filings": {
+                    "recent": {
+                        "form": ["10-Q"],
+                        "filingDate": ["2026-02-01"],
+                        "reportDate": ["2025-12-31"],
+                        "accessionNumber": ["0000320193-26-000001"],
+                        "primaryDocument": ["aapl-20251231.htm"],
+                        "primaryDocDescription": ["10-Q"],
+                    }
+                }
+            },
+        )
+
+    provider = SecEdgar("Analyst analyst@example.com", _client(handler))
+    record = provider.fetch_filings("320193").records[0]
+
+    assert record.event_time.isoformat() == "2025-12-31T00:00:00+00:00"
+    assert record.available_at.isoformat() == "2026-02-01T00:00:00+00:00"
+
 def test_news_articles_are_data_with_entity_hints() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
