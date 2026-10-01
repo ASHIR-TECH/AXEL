@@ -14,9 +14,24 @@ from axel.risk.killswitch import KillSwitch
 from axel.risk.limits import LIMITS, RiskLimits
 from axel.risk.loss_manager import DailyPnLState, LossEvaluationResult, LossManager
 from axel.risk.sizer import KellySizer, SizingResult
+from axel.risk.tail import (
+    SCENARIOS,
+    Position,
+    ProposedTrade,
+    RiskBudget,
+    SizingDecision,
+    StressScenario,
+    TailRiskEngine,
+    TailRiskReport,
+    expected_shortfall,
+    historical_var,
+    marginal_var,
+    stress_loss,
+)
 
 __all__ = [
     "LIMITS",
+    "SCENARIOS",
     "AccountState",
     "AllocationDecision",
     "CapitalAllocator",
@@ -26,8 +41,19 @@ __all__ = [
     "LossEvaluationResult",
     "LossManager",
     "OpenPositionInfo",
+    "Position",
+    "ProposedTrade",
+    "RiskBudget",
     "RiskLimits",
     "SectionRiskAgent",
     "SectionRiskState",
+    "SizingDecision",
     "SizingResult",
+    "StressScenario",
+    "TailRiskEngine",
+    "TailRiskReport",
+    "expected_shortfall",
+    "historical_var",
+    "marginal_var",
+    "stress_loss",
 ]

@@ -1,4 +1,6 @@
-"""Safe, point-in-time CSV ingestion. Network source adapters belong above this boundary."""
+"""Safe CSV OHLCV import. Network source adapters live in ``axel.data.providers``."""
+
+from __future__ import annotations
 
 import csv
 from collections.abc import Iterable
@@ -22,12 +24,18 @@ def parse_ohlcv_csv(payload: str, *, source: str) -> list[Bar]:
         timestamp = datetime.fromisoformat(row["timestamp"])
         if timestamp.tzinfo is None:
             raise ValueError("provider timestamp must include a timezone")
-        bars.append(Bar(
-            symbol=row["symbol"].upper(), timestamp=timestamp.astimezone(UTC),
-            open=float(row["open"]), high=float(row["high"]), low=float(row["low"]),
-            close=float(row["close"]), volume=float(row["volume"]),
-            timeframe=row.get("timeframe") or "1d",
-        ))
+        bars.append(
+            Bar(
+                symbol=row["symbol"].upper(),
+                timestamp=timestamp.astimezone(UTC),
+                open=float(row["open"]),
+                high=float(row["high"]),
+                low=float(row["low"]),
+                close=float(row["close"]),
+                volume=float(row["volume"]),
+                timeframe=row.get("timeframe") or "1d",
+            )
+        )
     return sorted(bars, key=lambda bar: (bar.symbol, bar.timestamp))
 
 
