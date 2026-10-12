@@ -22,3 +22,14 @@ def generate_client_order_id(proposal_id: str, attempt: int = 1) -> str:
     content = f"{clean_prop}:{attempt}".encode()
     order_hash = hashlib.sha256(content).hexdigest()[:16]
     return f"ord_{clean_prop[:12]}_{order_hash}"
+
+
+def derive_client_order_id(order_hash: str) -> str:
+    """
+    Deterministic client order ID derived from the canonical order hash.
+
+    Because the hash covers every material order field plus the live-config
+    version, the same intent always yields the same client order ID, which is
+    what makes broker-side idempotency and crash recovery safe (Phase 6 §7.3).
+    """
+    return f"axl_{order_hash[:40]}"
