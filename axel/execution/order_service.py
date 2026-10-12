@@ -25,7 +25,7 @@ from axel.core.ids import derive_client_order_id
 from axel.core.logging import logger
 from axel.core.money import to_decimal
 from axel.core.types import OrderState
-from axel.execution.approval import OrderApprovalService, compute_order_hash
+from axel.execution.approval import AuthenticatedPrincipal, OrderApprovalService, compute_order_hash
 from axel.execution.broker_base import (
     AmbiguousSubmissionError,
     BrokerAdapter,
@@ -40,6 +40,7 @@ from axel.execution.order_store import (
     OrderEventStore,
     OrderRecord,
 )
+from axel.execution.permissions import assert_may_cancel, assert_may_submit
 from axel.execution.reason_codes import OrderReason
 
 # States that mean "we asked the broker and do not yet know the outcome".
@@ -120,8 +121,10 @@ class OrderService:
         config_version: str,
         approvals: OrderApprovalService | None = None,
         correlation_id: str | None = None,
+        principal: AuthenticatedPrincipal | None = None,
     ) -> SubmitOutcome:
         """Submit exactly once, recovering instead of resubmitting on retry."""
+        assert_may_submit(principal)
         order_hash = compute_order_hash(order, config_version=config_version)
         client_order_id = order.client_order_id or derive_client_order_id(order_hash)
         if not order.client_order_id:
@@ -307,7 +310,10 @@ class OrderService:
         return self.store.record(event.client_order_id)
 
     # ── Cancellation ────────────────────────────────────────────────────────
-    def cancel(self, client_order_id: str) -> OrderRecord:
+    def cancel(
+        self, client_order_id: str, *, principal: AuthenticatedPrincipal | None = None
+    ) -> OrderRecord:
+        assert_may_cancel(principal)
         record = self._require(client_order_id)
         if record.is_terminal:
             return record
