@@ -187,3 +187,32 @@ Ordered by work package from spec §16. Each line is a separate reviewable chang
 ## 5. Acceptance-test preview (PRD, unchanged)
 
 Clean deployment, live disabled → operator cannot submit. After approved config + authenticated manual approval, the smallest Stocks order passes deterministic validation, reaches the broker, fills, reconciles. A simulated mismatch creates an incident. A kill-switch event stops new risk-increasing orders. Recovery returns to disabled/paper until explicitly reauthorized.
+
+---
+
+## 6. Implementation status (executed)
+
+The work packages above have been implemented on branch `feat/phase6-tiny-live`,
+one reviewable commit per file (source then tests), with a green suite and the
+LLM-import boundary passing.
+
+| Package | Status | Key artifacts |
+| --- | --- | --- |
+| `P6-GATE` | DONE | `axel/core/money.py`, `axel/execution/live_gate.py` |
+| `P6-APPROVAL` | DONE | `axel/execution/approval.py`, `axel/core/contracts.py` |
+| `P6-BROKER` | DONE | `axel/execution/broker_base.py`, `axel/execution/alpaca.py` |
+| `P6-ORDER` | DONE | `axel/core/ids.py`, `axel/execution/order_fsm.py`, `axel/execution/order_store.py`, `axel/execution/order_service.py` |
+| `P6-RISK` | DONE | `axel/execution/pre_trade.py` |
+| `P6-RECON` | DONE | `axel/execution/incidents.py`, `axel/execution/reconcile.py` |
+| `P6-HALT` | DONE | `axel/risk/halt.py` |
+| `P6-OBS` | DONE | `axel/execution/analytics.py`, `axel/dashboard/metrics.py` |
+| `P6-QA` | DONE | `tests/unit/test_failure_injection.py`, `tests/unit/test_permissions.py`, `tests/property/test_order_fsm_properties.py`, `tests/integration/test_phase6_db_models.py` |
+| `P6-RUNBOOK` | DONE | `docs/phase-6-runbook.md` |
+| `P6-ROLLOUT` | **BLOCKED** | `docs/phase-6-rollout.md` (blocked on Phase 5 evidence) |
+| Persistence | DONE | Phase 6 tables in `axel/db/models.py` (+ `tests/integration/test_phase6_db_models.py`) |
+| How-to-run | DONE | `docs/phase-6-how-to-run.md` |
+
+Open questions from §4 remain: real-mode Alpaca lookup-by-client-id / idempotent
+retry is implemented but not proven live; the approval operator identity source;
+the execution-metric benchmark (VWAP) source/coverage; and where Phase 5 evidence
+is produced. None of these block the code, only `P6-ROLLOUT`.
