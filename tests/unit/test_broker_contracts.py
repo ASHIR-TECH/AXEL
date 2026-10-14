@@ -201,6 +201,36 @@ def test_base_url_normalised_to_host_root(configured, expected):
     assert f"{broker.base_url}/v2/account" == f"{expected}/v2/account"
 
 
+def test_shared_http_client_is_reused_and_closeable():
+    # A single client must be reused so TCP+TLS connections stay warm.
+    broker = AlpacaAdapter(api_key="k", secret_key="s", base_url="https://example.test")
+    first = broker._http()
+    second = broker._http()
+    assert first is second
+    broker.close()
+    assert broker._client is None
+    assert broker._http() is not first  # a fresh client after close
+
+
+def test_warmup_is_noop_in_mock_mode_and_creates_no_network_client():
+    broker = AlpacaAdapter(mock_mode=True)
+    assert broker.warmup() is True
+    assert broker._client is None
+
+
+def test_timeout_is_configurable():
+    broker = AlpacaAdapter(api_key="k", secret_key="s", timeout=2.5)
+    assert broker.timeout == 2.5
+    broker.close()
+
+
+def test_adapter_context_manager_closes_client():
+    with AlpacaAdapter(api_key="k", secret_key="s") as broker:
+        broker._http()
+        assert broker._client is not None
+    assert broker._client is None
+
+
 def test_sanitize_payload_redacts_secrets_and_sensitive_keys():
     payload = {
         "symbol": "SPY",

@@ -14,8 +14,10 @@ time (spec §9).
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Self
 
 import httpx
 
@@ -101,6 +103,7 @@ class AlpacaAdapter(BrokerAdapter):
         mock_mode: bool = False,
         clock: Clock | None = None,
         account_id: str | None = None,
+        timeout: float = 10.0,
     ):
         self.clock = clock or RealClock()
         self.api_key = api_key or (
@@ -136,6 +139,54 @@ class AlpacaAdapter(BrokerAdapter):
         # "rejected", "nonretryable".
         self.fail_next_submit: str | None = None
         self.health_ok: bool = True
+
+        # A single, reused HTTP client keeps the TCP+TLS connection alive between
+        # calls. Creating a fresh client per request costs a full handshake
+        # (~800 ms to Alpaca); a warm keep-alive connection is ~200 ms.
+        self.timeout = timeout
+        self._client: httpx.Client | None = None
+
+    # ── HTTP connection management ──────────────────────────────────────────
+    def _http(self) -> httpx.Client:
+        """Return the shared keep-alive client, creating it on first use."""
+        if self._client is None:
+            self._client = httpx.Client(
+                timeout=self.timeout,
+                limits=httpx.Limits(max_keepalive_connections=10, keepalive_expiry=60.0),
+                headers=self._headers(),
+            )
+        return self._client
+
+    @contextmanager
+    def _client_ctx(self):
+        """Yield the shared client without closing it (keeps connections warm)."""
+        yield self._http()
+
+    def warmup(self) -> bool:
+        """
+        Establish the TCP+TLS connection up front so the first real request is
+        fast. Returns ``True`` when the account endpoint replied 2xx. Safe to call
+        repeatedly; a no-op in mock mode.
+        """
+        if self.mock_mode:
+            return True
+        try:
+            resp = self._http().get(f"{self.base_url}/v2/account")
+            return 200 <= resp.status_code < 300
+        except httpx.HTTPError:
+            return False
+
+    def close(self) -> None:
+        """Close the shared client and release pooled connections."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
 
     # ── Helpers ─────────────────────────────────────────────────────────────
     def _headers(self) -> dict[str, str]:
@@ -176,7 +227,7 @@ class AlpacaAdapter(BrokerAdapter):
             return dict(self._mock_balance)
 
         url = f"{self.base_url}/v2/account"
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers())
             resp.raise_for_status()
             data = resp.json()
@@ -197,7 +248,7 @@ class AlpacaAdapter(BrokerAdapter):
             )
 
         url = f"{self.base_url}/v2/account"
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers())
             resp.raise_for_status()
             data = resp.json()
@@ -216,7 +267,7 @@ class AlpacaAdapter(BrokerAdapter):
             return list(self._mock_positions.values())
 
         url = f"{self.base_url}/v2/positions"
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers())
             resp.raise_for_status()
             positions = []
@@ -240,7 +291,7 @@ class AlpacaAdapter(BrokerAdapter):
             return [o for o in self._mock_orders.values() if o.state in _OPEN_STATES]
 
         url = f"{self.base_url}/v2/orders"
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers(), params={"status": "open", "limit": 500})
             resp.raise_for_status()
             return [self._broker_order_from_payload(item) for item in resp.json()]
@@ -251,7 +302,7 @@ class AlpacaAdapter(BrokerAdapter):
             return self._mock_orders.get(client_oid) if client_oid else None
 
         url = f"{self.base_url}/v2/orders/{broker_order_id}"
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers())
             if resp.status_code == 404:
                 return None
@@ -263,7 +314,7 @@ class AlpacaAdapter(BrokerAdapter):
             return self._mock_orders.get(client_order_id)
 
         url = f"{self.base_url}/v2/orders:by_client_order_id"
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers(), params={"client_order_id": client_order_id})
             if resp.status_code == 404:
                 return None
@@ -280,7 +331,7 @@ class AlpacaAdapter(BrokerAdapter):
         if since is not None:
             params["after"] = since.isoformat()
         url = f"{self.base_url}/v2/account/activities"
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers(), params=params)
             resp.raise_for_status()
             fills: list[BrokerFill] = []
@@ -313,7 +364,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/account"
         started = self.clock.now()
         try:
-            with httpx.Client(timeout=10.0) as client:
+            with self._client_ctx() as client:
                 resp = client.get(url, headers=self._headers())
             latency = (self.clock.now() - started).total_seconds() * 1000.0
             return BrokerHealth(
@@ -345,7 +396,7 @@ class AlpacaAdapter(BrokerAdapter):
             payload["stop_price"] = str(order.stop_price)
 
         try:
-            with httpx.Client(timeout=10.0) as client:
+            with self._client_ctx() as client:
                 resp = client.post(url, headers=self._headers(), json=payload)
         except httpx.TimeoutException as exc:
             # The request may have reached the venue; the outcome is unknown.
@@ -551,7 +602,7 @@ class AlpacaAdapter(BrokerAdapter):
         found = self.find_order_by_client_id(client_order_id)
         if found is None:
             return BrokerCancelResult(client_order_id=client_order_id, accepted=False, detail="order not found")
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             del_resp = client.delete(f"{self.base_url}/v2/orders/{found.broker_order_id}", headers=self._headers())
             accepted = del_resp.status_code in (200, 204)
             return BrokerCancelResult(
@@ -572,7 +623,7 @@ class AlpacaAdapter(BrokerAdapter):
             return cancelled
 
         url = f"{self.base_url}/v2/orders"
-        with httpx.Client(timeout=10.0) as client:
+        with self._client_ctx() as client:
             resp = client.delete(url, headers=self._headers())
             resp.raise_for_status()
             data = resp.json()
