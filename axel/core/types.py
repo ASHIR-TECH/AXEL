@@ -37,14 +37,24 @@ class TimeInForce(str, Enum):
 
 
 class OrderState(str, Enum):
-    PENDING_SUBMIT = "pending_submit"
+    # Canonical Phase 6 lifecycle (see docs/AXEL_PHASE_6_RESEARCH_AND_IMPLEMENTATION.md §7).
+    CREATED = "created"
+    APPROVED = "approved"
     SUBMITTED = "submitted"
-    ACCEPTED = "accepted"
+    UNKNOWN = "unknown"
+    ACKNOWLEDGED = "acknowledged"
     PARTIALLY_FILLED = "partially_filled"
+    CANCEL_PENDING = "cancel_pending"
     FILLED = "filled"
     CANCELED = "canceled"
-    EXPIRED = "expired"
     REJECTED = "rejected"
+    EXPIRED = "expired"
+    # ERROR is non-recoverable without a controlled reconciliation path; it is never
+    # treated as terminal so that broker facts can still repair it.
+    ERROR = "error"
+    # Legacy paper-era aliases retained so Phase 1-5 code paths keep working.
+    PENDING_SUBMIT = "pending_submit"
+    ACCEPTED = "accepted"
 
 
 class ProposalStatus(str, Enum):

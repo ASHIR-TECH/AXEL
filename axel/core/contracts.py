@@ -98,7 +98,12 @@ class RiskDecision(ContractBase):
 class Order(ContractBase):
     """
     Executable order model managed by the Execution Bot and Order FSM.
+
+    Phase 6 adds optional provenance fields (strategy/config versions, risk and
+    approval linkage, correlation ID, decision reference price) so the canonical
+    order hash and the live audit trail can bind to an exact order version.
     """
+
     client_order_id: str
     proposal_id: str
     symbol: str
@@ -113,6 +118,17 @@ class Order(ContractBase):
     filled_qty: float = Field(default=0.0, ge=0.0)
     filled_avg_price: float | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    # ── Phase 6 provenance / linkage ───────────────────────────────────────
+    intent_id: str | None = None
+    strategy_id: str | None = None
+    strategy_version: str | None = None
+    live_config_version: str | None = None
+    risk_decision_id: str | None = None
+    approval_id: str | None = None
+    correlation_id: str | None = None
+    decision_ref_price: float | None = Field(default=None, gt=0.0)
+    decision_ref_ts: datetime | None = None
 
 
 class AllocationProposal(ContractBase):

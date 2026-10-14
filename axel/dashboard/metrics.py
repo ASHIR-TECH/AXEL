@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session
 from axel.db.models import PositionModel, TradeProposalModel
 from axel.execution.approval import ApprovalService
 from axel.execution.broker_base import BrokerAdapter
+from axel.execution.incidents import IncidentStore
+from axel.risk.halt import HaltController
 from axel.risk.killswitch import KillSwitch
 
 # ── Snapshot dataclass ──────────────────────────────────────────────────────
@@ -48,6 +50,16 @@ class MetricsSnapshot:
     approved_proposals_last_24h: int = 0
     rejected_proposals_last_24h: int = 0
 
+    # Phase 6 operational fields
+    live_enabled: bool = False
+    halt_active: bool = False
+    halt_scope: str | None = None
+    open_incidents_total: int = 0
+    critical_incidents_total: int = 0
+    unreconciled_orders: int = 0
+    last_reconciliation_age_seconds: float | None = None
+    reconciliation_mismatches: int = 0
+
 
 # ── Collection ──────────────────────────────────────────────────────────────
 
@@ -56,6 +68,13 @@ def collect_metrics(
     broker: BrokerAdapter,
     kill_switch: KillSwitch,
     approval_service: ApprovalService,
+    *,
+    halt: HaltController | None = None,
+    incident_store: IncidentStore | None = None,
+    live_enabled: bool = False,
+    unreconciled_orders: int = 0,
+    last_reconciliation_age_seconds: float | None = None,
+    reconciliation_mismatches: int = 0,
 ) -> MetricsSnapshot:
     """
     Aggregates live state from broker, kill switch, approval queue, and DB.
@@ -142,6 +161,17 @@ def collect_metrics(
     snap.approved_proposals_last_24h = _count_proposals_by_status("approved", cutoff_24h)
     snap.rejected_proposals_last_24h = _count_proposals_by_status("rejected", cutoff_24h)
 
+    # ── Phase 6 operational fields ──────────────────────────────────────
+    snap.live_enabled = live_enabled
+    snap.halt_active = halt.is_halted if halt is not None else kill_switch.is_halted
+    snap.halt_scope = halt.scope.value if (halt is not None and halt.scope is not None) else None
+    if incident_store is not None:
+        snap.open_incidents_total = len(incident_store.open_incidents())
+        snap.critical_incidents_total = incident_store.critical_open_count()
+    snap.unreconciled_orders = unreconciled_orders
+    snap.last_reconciliation_age_seconds = last_reconciliation_age_seconds
+    snap.reconciliation_mismatches = reconciliation_mismatches
+
     return snap
 
 
@@ -160,6 +190,14 @@ _HELP: dict[str, str] = {
     "axel_proposals_total": "Number of trade proposals created",
     "axel_proposals_approved_total": "Number of approved proposals",
     "axel_proposals_rejected_total": "Number of rejected proposals",
+    "axel_live_enabled": "1 if live trading is currently activated, 0 otherwise",
+    "axel_halt_active": "1 if any halt scope is active, 0 otherwise",
+    "axel_halt_scope": "Active halt scope as a label (global/section/new_risk_only)",
+    "axel_open_incidents_total": "Number of currently open incidents",
+    "axel_critical_incidents_total": "Number of open critical (risk-blocking) incidents",
+    "axel_unreconciled_orders_total": "Number of orders awaiting reconciliation",
+    "axel_last_reconciliation_age_seconds": "Age of the most recent reconciliation snapshot",
+    "axel_reconciliation_mismatches_total": "Mismatches found in the last reconciliation run",
 }
 
 
@@ -202,6 +240,16 @@ def format_prometheus(snapshot: MetricsSnapshot) -> str:
     _counter("axel_proposals_total", snapshot.proposals_last_1h, {"window": "1h"})
     _counter("axel_proposals_approved_total", snapshot.approved_proposals_last_24h, {"window": "24h"})
     _counter("axel_proposals_rejected_total", snapshot.rejected_proposals_last_24h, {"window": "24h"})
+    _gauge("axel_live_enabled", int(snapshot.live_enabled))
+    _gauge("axel_halt_active", int(snapshot.halt_active))
+    if snapshot.halt_scope is not None:
+        _gauge("axel_halt_scope", 1, {"scope": snapshot.halt_scope})
+    _gauge("axel_open_incidents_total", snapshot.open_incidents_total)
+    _gauge("axel_critical_incidents_total", snapshot.critical_incidents_total)
+    _gauge("axel_unreconciled_orders_total", snapshot.unreconciled_orders)
+    if snapshot.last_reconciliation_age_seconds is not None:
+        _gauge("axel_last_reconciliation_age_seconds", snapshot.last_reconciliation_age_seconds)
+    _gauge("axel_reconciliation_mismatches_total", snapshot.reconciliation_mismatches)
 
     lines.append("")  # trailing newline required by the spec
     return "\n".join(lines)
