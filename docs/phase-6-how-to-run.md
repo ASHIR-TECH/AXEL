@@ -299,6 +299,22 @@ snapshot = collect_metrics(
 print(format_prometheus(snapshot))
 ```
 
+### 4.8 Connection reuse and latency
+
+The adapter keeps a single HTTP client alive so TCP+TLS connections are reused.
+Creating a fresh client per request costs a full handshake (~800 ms to Alpaca);
+a warm keep-alive connection is ~200 ms. Call `warmup()` once at startup so the
+first real request does not pay the handshake:
+
+```python
+with AlpacaAdapter() as broker:      # context manager closes the pool on exit
+    broker.warmup()                  # establishes TCP+TLS up front (no-op in mock mode)
+    account = broker.get_account()   # ~200 ms instead of ~800 ms
+```
+
+The timeout is configurable (`AlpacaAdapter(timeout=5.0)`) and connections are
+pooled with a 60s keep-alive expiry.
+
 ---
 
 ## 5. Database schema
