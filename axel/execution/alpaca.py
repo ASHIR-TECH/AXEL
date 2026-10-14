@@ -109,7 +109,13 @@ class AlpacaAdapter(BrokerAdapter):
         self.secret_key = secret_key or (
             settings.alpaca_secret_key.get_secret_value() if settings.alpaca_secret_key else None
         )
-        self.base_url = base_url or settings.alpaca_base_url
+        # The configured base URL may be either the API host root
+        # (``https://paper-api.alpaca.markets``) or include the ``/v2`` API
+        # prefix. Every request path below appends ``/v2/...``, so normalise the
+        # configured value to the host root to avoid a double ``/v2`` (404).
+        raw_base = (base_url or settings.alpaca_base_url).rstrip("/")
+        raw_base = raw_base.removesuffix("/v2")
+        self.base_url = raw_base
         self.mock_mode = mock_mode or not (self.api_key and self.secret_key)
         self.account_id = account_id or ("mock-account" if self.mock_mode else "")
 

@@ -185,6 +185,22 @@ def test_health_check_reports_state():
     assert health.detail
 
 
+@pytest.mark.parametrize(
+    "configured, expected",
+    [
+        ("https://paper-api.alpaca.markets", "https://paper-api.alpaca.markets"),
+        ("https://paper-api.alpaca.markets/", "https://paper-api.alpaca.markets"),
+        ("https://paper-api.alpaca.markets/v2", "https://paper-api.alpaca.markets"),
+        ("https://paper-api.alpaca.markets/v2/", "https://paper-api.alpaca.markets"),
+    ],
+)
+def test_base_url_normalised_to_host_root(configured, expected):
+    # A configured "/v2" must not produce a double "/v2" in request paths.
+    broker = AlpacaAdapter(base_url=configured, mock_mode=True)
+    assert broker.base_url == expected
+    assert f"{broker.base_url}/v2/account" == f"{expected}/v2/account"
+
+
 def test_sanitize_payload_redacts_secrets_and_sensitive_keys():
     payload = {
         "symbol": "SPY",
