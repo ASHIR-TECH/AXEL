@@ -1,0 +1,18 @@
+item 8
+no 34 kawo
+090944557786
+TRX-2026-XM6KC16/10/2026
+      INVOICEINV-2026-8BQUK
+      12:10:08COUNTER
+      SERVED BY: ebute
+CUSTOMER: Rich Man (CUST-1001)
+Garrri
+ 1 x ₦1,900.00₦1,900.00
+      SUBTOTAL₦1,900.00
+      VAT₦142.50
+      TOTAL₦2,042.50
+BANK TRANSFER₦2,042.50
+REF SENT
+      PAID
+      1 item(s)
+Thank you for shopping with us
