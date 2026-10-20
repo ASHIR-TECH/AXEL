@@ -49,10 +49,17 @@ class SectionRiskAgent:
     Contains no side effects or I/O.
     """
 
-    def __init__(self, limits: RiskLimits = LIMITS):
+    def __init__(
+        self,
+        limits: RiskLimits = LIMITS,
+        venue_risk_manager: object = None,
+        rolling_utc_stop: object = None,
+    ):
         self.limits = limits
         self.sizer = KellySizer(limits)
         self.loss_manager = LossManager(limits)
+        self.venue_risk_manager = venue_risk_manager
+        self.rolling_utc_stop = rolling_utc_stop
 
     def evaluate(
         self,
@@ -87,6 +94,40 @@ class SectionRiskAgent:
                 checks_failed=["GLOBAL_KILL_SWITCH"],
             )
         checks_passed.append("GLOBAL_KILL_SWITCH_CLEAR")
+
+        # 1b. Crypto Rolling 24-Hour UTC Stop Check
+        if proposal.section == Section.CRYPTO and self.rolling_utc_stop is not None:
+            if getattr(self.rolling_utc_stop, "_halted", False):
+                reason = getattr(self.rolling_utc_stop, "_halt_reason", None) or "Rolling 24h UTC stop is active"
+                return RiskDecision(
+                    proposal_id=proposal.id,
+                    approved=False,
+                    verdict=RiskVerdict.HALTED,
+                    approved_qty=0.0,
+                    approved_notional_usd=0.0,
+                    binding_limit="ROLLING_24H_UTC_STOP",
+                    reasons=[f"ROLLING_24H_UTC_STOP_ACTIVE: {reason}"],
+                    checks_passed=checks_passed,
+                    checks_failed=["ROLLING_24H_UTC_STOP"],
+                )
+            checks_passed.append("ROLLING_24H_UTC_STOP_CLEAR")
+
+        # 1c. Crypto Venue Risk Check
+        if proposal.section == Section.CRYPTO and self.venue_risk_manager is not None:
+            venue_target = None
+            if proposal.rationale_ref and ":" in proposal.rationale_ref:
+                parts = proposal.rationale_ref.split(":")
+                if len(parts) >= 2 and parts[0] == "crypto_manager":
+                    venue_target = parts[1]
+            if venue_target:
+                allowed, v_reason = self.venue_risk_manager.is_venue_allowed(venue_target)
+                if not allowed:
+                    checks_failed.append("VENUE_RISK_DISABLED")
+                    reasons.append(v_reason or f"Venue '{venue_target}' is disabled")
+                else:
+                    checks_passed.append("VENUE_RISK_CLEAR")
+            else:
+                checks_passed.append("VENUE_RISK_CLEAR")
 
         # 2. Section Daily Stop-Loss Check
         daily_state = DailyPnLState(
