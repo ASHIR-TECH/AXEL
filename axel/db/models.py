@@ -483,3 +483,78 @@ class LiveConfigModel(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+
+# ── Phase 7: Crypto Vertical Models ─────────────────────────────────────────
+
+
+class CryptoFundingRateModel(Base):
+    """Point-in-time perpetual funding rate observations (Phase 7)."""
+
+    __tablename__ = "crypto_funding_rates"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    venue: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    rate: Mapped[str] = mapped_column(String(32), nullable=False)  # Decimal as string
+    funding_interval_hours: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
+    predicted_rate: Mapped[str | None] = mapped_column(String(32))
+    mark_price: Mapped[str | None] = mapped_column(String(32))
+    index_price: Mapped[str | None] = mapped_column(String(32))
+    provenance_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class CryptoOrderBookSnapshotModel(Base):
+    """L2 order book snapshots for crypto venues (Phase 7)."""
+
+    __tablename__ = "crypto_orderbook_snapshots"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    venue: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    symbol: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    mid_price: Mapped[str] = mapped_column(String(32), nullable=False)
+    spread_bps: Mapped[str] = mapped_column(String(32), nullable=False)
+    bid_depth_usd: Mapped[str] = mapped_column(String(32), nullable=False)
+    ask_depth_usd: Mapped[str] = mapped_column(String(32), nullable=False)
+    provenance_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class CryptoOnChainMetricModel(Base):
+    """Point-in-time on-chain observations and flow metrics (Phase 7)."""
+
+    __tablename__ = "crypto_onchain_metrics"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    chain: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    block_number: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    block_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    entity_address: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
+    metric_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    metric_value: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_label: Mapped[str | None] = mapped_column(String(128))
+    is_verified_label: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class CryptoVenueHealthModel(Base):
+    """Audit log of crypto venue health checks and operational state (Phase 7)."""
+
+    __tablename__ = "crypto_venue_health"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    venue: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
+    maintenance_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    stale_data_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    rejection_rate: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    withdrawal_status_ok: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
