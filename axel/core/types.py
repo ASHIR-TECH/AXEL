@@ -9,6 +9,7 @@ class Section(str, Enum):
     STOCKS = "stocks"
     CRYPTO = "crypto"
     OPTIONS = "options"
+    FOREX = "forex"
     PREDICTIONS = "predictions"
 
 
