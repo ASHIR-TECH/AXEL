@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
 
@@ -21,6 +21,7 @@ class FeatureVersion:
     fit_on_training_only: bool = True
     warmup_bars: int = 0
     applicable_sections: list[str] = field(default_factory=list)
+    applicable_instruments: list[str] = field(default_factory=list)
     cross_sectional: bool = False
     dependencies: list[tuple[str, str]] = field(default_factory=list)
     leakage_risks: list[str] = field(default_factory=list)
@@ -40,10 +41,22 @@ class FeatureDefinition:
         return self.versions.get(v)
 
     def add_version(self, fv: FeatureVersion, make_current: bool = False) -> "FeatureDefinition":
+        existing = self.versions.get(fv.version)
+        if existing and existing.immutable:
+            raise ValueError(
+                f"Feature '{self.feature_id}' version '{fv.version}' is locked/immutable and cannot be overwritten."
+            )
         versions = dict(self.versions)
         versions[fv.version] = fv
         current = fv.version if make_current or not self.versions else self.current_version
         return FeatureDefinition(feature_id=self.feature_id, current_version=current, versions=versions)
+
+    def mark_immutable(self, version: str) -> "FeatureDefinition":
+        target = self.versions.get(version)
+        if not target:
+            raise KeyError(f"Feature version '{version}' not found.")
+        updated_fv = replace(target, immutable=True)
+        return self.add_version(updated_fv)
 
 
 class FeatureRegistry:
