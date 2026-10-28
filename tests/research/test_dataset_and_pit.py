@@ -46,11 +46,13 @@ def test_timezone_safety_naive_and_aware():
     # Naive timestamp should be automatically normalized without TypeError
     naive_decision = datetime(2026, 5, 1, 10, 0)
     aware_pub = datetime(2026, 5, 1, 9, 0, tzinfo=UTC)
+    aware_ing = datetime(2026, 5, 1, 9, 30, tzinfo=UTC)
 
     ds = DatasetVersion(
         dataset_id="quotes",
         version="v1",
         publication_time=aware_pub,
+        ingestion_time=aware_ing,
     )
     assert ds.is_available_at(naive_decision) is True
 

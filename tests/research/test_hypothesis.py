@@ -89,9 +89,9 @@ def test_duplicate_hypothesis_linking():
     h2 = registry.create(title="Hyp 2 (Duplicate)", question="Q2?")
 
     u1, u2 = registry.link_duplicate(source_id=h2.hypothesis_id, target_id=h1.hypothesis_id)
-    assert u2.duplicate_of == h1.hypothesis_id
-    assert h1.hypothesis_id in u2.linked_hypothesis_ids
-    assert h2.hypothesis_id in u1.linked_hypothesis_ids
+    assert u1.duplicate_of == h1.hypothesis_id
+    assert h1.hypothesis_id in u1.linked_hypothesis_ids
+    assert h2.hypothesis_id in u2.linked_hypothesis_ids
 
 
 def test_querying_by_status():

@@ -54,6 +54,10 @@ class ExperimentConfig:
     config_hash: str = ""
     resource_limits: dict[str, Any] = field(default_factory=lambda: {"cpu": 2, "mem_mb": 4096, "timeout_s": 3600})
 
+    def __post_init__(self) -> None:
+        if not self.config_hash:
+            object.__setattr__(self, "config_hash", self.compute_hash())
+
     def compute_hash(self) -> str:
         data = {
             "hypothesis_id": self.hypothesis_id,
