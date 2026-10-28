@@ -1,6 +1,8 @@
 """
 CI / Lint check to enforce the architectural boundary:
-Zero LLM library imports are permitted in `axel/risk/` and `axel/execution/`.
+Zero LLM library imports are permitted in the deterministic risk, execution,
+and portfolio packages. LLM output may propose, but it may not enter these
+trusted modules directly.
 """
 
 import ast
@@ -27,6 +29,7 @@ FORBIDDEN_LLM_MODULES = {
 RESTRICTED_DIRS = [
     Path("axel/risk"),
     Path("axel/execution"),
+    Path("axel/portfolio"),
 ]
 
 
@@ -62,7 +65,10 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     total_violations = 0
 
-    print("Running architectural boundary lint: Verifying zero LLM imports in risk/ and execution/...")
+    print(
+        "Running architectural boundary lint: Verifying zero LLM imports in "
+        "risk/, execution/, and portfolio/..."
+    )
 
     for restricted_dir in RESTRICTED_DIRS:
         target_dir = repo_root / restricted_dir
@@ -77,7 +83,7 @@ def main() -> int:
                 total_violations += 1
 
     if total_violations == 0:
-        print("[PASS] No forbidden LLM imports detected in risk/ or execution/.")
+        print("[PASS] No forbidden LLM imports detected in risk/, execution/, or portfolio/.")
         return 0
     else:
         print(f"[FAIL] Detected {total_violations} forbidden LLM imports in deterministic core!")
