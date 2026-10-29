@@ -60,7 +60,7 @@ class CodeChangeProposal:
         if has_restricted:
             object.__setattr__(self, "restricted_paths_changed", True)
 
-    def approve(self, approver: str) -> "CodeChangeProposal":
+    def approve(self, approver: str) -> CodeChangeProposal:
         # Security rule per PRD §2.2 & §6.9: QRA cannot approve its own proposal
         if approver.strip().lower() == self.created_by.strip().lower():
             raise PermissionError(
@@ -82,9 +82,7 @@ class CodeChangeProposal:
         if not self.approvals:
             return False
         # Security invariant: independent approval required
-        if any(a.strip().lower() == self.created_by.strip().lower() for a in self.approvals):
-            return False
-        return True
+        return not any(a.strip().lower() == self.created_by.strip().lower() for a in self.approvals)
 
 
 def submit_proposal(proposal: CodeChangeProposal) -> CodeChangeProposal:

@@ -5,14 +5,10 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 
-import pytest
-
 from axel.research.dataset import (
-    DatasetLineage,
     DatasetRegistry,
     DatasetVersion,
     PointInTimeChecker,
-    ensure_utc,
 )
 
 
@@ -44,7 +40,7 @@ def test_point_in_time_availability_rules():
 
 def test_timezone_safety_naive_and_aware():
     # Naive timestamp should be automatically normalized without TypeError
-    naive_decision = datetime(2026, 5, 1, 10, 0)
+    naive_decision = datetime(2026, 5, 1, 10, 0)  # noqa: DTZ001
     aware_pub = datetime(2026, 5, 1, 9, 0, tzinfo=UTC)
     aware_ing = datetime(2026, 5, 1, 9, 30, tzinfo=UTC)
 

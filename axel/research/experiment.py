@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from hashlib import sha256
@@ -86,10 +86,10 @@ class ExperimentRun:
     metrics: dict[str, Any] = field(default_factory=dict)
     partial_results: dict[str, Any] = field(default_factory=dict)
 
-    def start(self) -> "ExperimentRun":
+    def start(self) -> ExperimentRun:
         return replace(self, status=ExperimentStatus.RUNNING, started_at=datetime.now(UTC))
 
-    def complete(self, metrics: dict[str, Any] | None = None, artifacts: list[str] | None = None) -> "ExperimentRun":
+    def complete(self, metrics: dict[str, Any] | None = None, artifacts: list[str] | None = None) -> ExperimentRun:
         return replace(
             self,
             status=ExperimentStatus.COMPLETED,
@@ -98,10 +98,10 @@ class ExperimentRun:
             artifact_refs=artifacts or self.artifact_refs,
         )
 
-    def fail(self, reason: str, status: ExperimentStatus = ExperimentStatus.FAILED) -> "ExperimentRun":
+    def fail(self, reason: str, status: ExperimentStatus = ExperimentStatus.FAILED) -> ExperimentRun:
         return replace(self, status=status, failure_reason=reason, completed_at=datetime.now(UTC))
 
-    def cancel(self, reason: str = "User cancelled run") -> "ExperimentRun":
+    def cancel(self, reason: str = "User cancelled run") -> ExperimentRun:
         return replace(self, status=ExperimentStatus.CANCELLED, failure_reason=reason, completed_at=datetime.now(UTC))
 
 
@@ -211,7 +211,7 @@ class ExperimentRunner:
 
             artifacts = [f"artifacts/{run_id}/results.json"]
             run = run.complete(metrics=metrics, artifacts=artifacts)
-        except Exception as e:
+        except (RuntimeError, ValueError, KeyError, TypeError) as e:
             run = run.fail(str(e))
 
         self._runs[run_id] = run

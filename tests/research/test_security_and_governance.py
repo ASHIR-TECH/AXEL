@@ -87,7 +87,7 @@ def test_governance_gate_prerequisites_and_no_live_promotion():
     # Verify no live promotion state exists in enum or gate
     assert not hasattr(gate, "can_promote_to_live")
     with pytest.raises(AttributeError):
-        getattr(PromotionState, "PROMOTED")
+        _ = PromotionState.PROMOTED
 
 
 def test_qra_has_no_order_or_live_execution_authority():

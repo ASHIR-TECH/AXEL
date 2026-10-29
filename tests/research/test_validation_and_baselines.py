@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from axel.research.baseline import (
     BaselineResult,
     compare_to_baselines,
-    default_baselines,
 )
 from axel.research.validation import (
-    holdout_split,
     perturb_parameters,
     purged_embargo_split,
     time_split,
@@ -19,11 +17,11 @@ from axel.research.validation import (
 
 
 def test_purged_embargo_split_drops_leakage_window():
-    base = datetime(2026, 1, 1)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     dates = [base + timedelta(days=i) for i in range(100)]
 
-    raw_train, raw_val, raw_test = time_split(dates, train_ratio=0.6, val_ratio=0.2)
-    purged_train, embargoed_val, embargoed_test = purged_embargo_split(
+    raw_train, raw_val, _raw_test = time_split(dates, train_ratio=0.6, val_ratio=0.2)
+    purged_train, embargoed_val, _embargoed_test = purged_embargo_split(
         dates,
         train_ratio=0.6,
         val_ratio=0.2,
@@ -38,7 +36,7 @@ def test_purged_embargo_split_drops_leakage_window():
 
 
 def test_walk_forward_evaluate_folds():
-    base = datetime(2026, 1, 1)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
     dates = [base + timedelta(days=i) for i in range(300)]
     folds = walk_forward_evaluate(dates, window_size=100, step_size=50)
 

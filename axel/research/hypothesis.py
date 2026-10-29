@@ -75,7 +75,7 @@ class Hypothesis:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     versions: tuple[HypothesisVersion, ...] = ()
 
-    def with_status(self, status: HypothesisStatus, force: bool = False) -> "Hypothesis":
+    def with_status(self, status: HypothesisStatus, force: bool = False) -> Hypothesis:
         if not force and status != self.status:
             allowed = VALID_STATUS_TRANSITIONS.get(self.status, set())
             if status not in allowed:
@@ -85,13 +85,13 @@ class Hypothesis:
                 )
         return replace(self, status=status)
 
-    def link_duplicate(self, duplicate_of_id: str) -> "Hypothesis":
+    def link_duplicate(self, duplicate_of_id: str) -> Hypothesis:
         linked = list(self.linked_hypothesis_ids)
         if duplicate_of_id not in linked:
             linked.append(duplicate_of_id)
         return replace(self, linked_hypothesis_ids=linked, duplicate_of=duplicate_of_id)
 
-    def bump_version(self, changed_by: str, change_reason: str, **updates: Any) -> "Hypothesis":
+    def bump_version(self, changed_by: str, change_reason: str, **updates: Any) -> Hypothesis:
         new_version = self.version + 1
         snapshot = {
             "title": self.title,

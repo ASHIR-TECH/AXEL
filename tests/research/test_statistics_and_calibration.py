@@ -8,10 +8,8 @@ from axel.research.statistics import (
     brier_score,
     calibration_metrics,
     deflated_sharpe_ratio,
-    expected_max_sharpe,
     log_loss,
     multiple_testing_correction,
-    probabilistic_sharpe_ratio,
 )
 
 

@@ -40,7 +40,7 @@ class FeatureDefinition:
         v = version or self.current_version
         return self.versions.get(v)
 
-    def add_version(self, fv: FeatureVersion, make_current: bool = False) -> "FeatureDefinition":
+    def add_version(self, fv: FeatureVersion, make_current: bool = False) -> FeatureDefinition:
         existing = self.versions.get(fv.version)
         if existing and existing.immutable:
             raise ValueError(
@@ -51,7 +51,7 @@ class FeatureDefinition:
         current = fv.version if make_current or not self.versions else self.current_version
         return FeatureDefinition(feature_id=self.feature_id, current_version=current, versions=versions)
 
-    def mark_immutable(self, version: str) -> "FeatureDefinition":
+    def mark_immutable(self, version: str) -> FeatureDefinition:
         target = self.versions.get(version)
         if not target:
             raise KeyError(f"Feature version '{version}' not found.")

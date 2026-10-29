@@ -65,7 +65,7 @@ class GovernanceGate:
     satisfied_evidence: set[str] = field(default_factory=set)
     audit_trail: list[dict[str, Any]] = field(default_factory=list)
 
-    def add_evidence(self, evidence: set[str] | list[str] | str, actor: str = "system") -> "GovernanceGate":
+    def add_evidence(self, evidence: set[str] | list[str] | str, actor: str = "system") -> GovernanceGate:
         items = {evidence} if isinstance(evidence, str) else set(evidence)
         new_sat = self.satisfied_evidence | items
         audit_entry = {
@@ -82,7 +82,7 @@ class GovernanceGate:
         missing = [r for r in reqs if r not in self.satisfied_evidence]
         return (len(missing) == 0, missing)
 
-    def advance(self, actor: str = "system") -> "GovernanceGate":
+    def advance(self, actor: str = "system") -> GovernanceGate:
         if self.state in (PromotionState.REJECTED, PromotionState.ARCHIVED, PromotionState.PROMOTION_REVIEW):
             return self
 
@@ -108,7 +108,7 @@ class GovernanceGate:
         }
         return replace(self, state=next_state, audit_trail=self.audit_trail + [audit_entry])
 
-    def reject(self, reason: str, actor: str = "reviewer") -> "GovernanceGate":
+    def reject(self, reason: str, actor: str = "reviewer") -> GovernanceGate:
         audit_entry = {
             "timestamp": datetime.now(UTC).isoformat(),
             "actor": actor,
@@ -118,7 +118,7 @@ class GovernanceGate:
         }
         return replace(self, state=PromotionState.REJECTED, audit_trail=self.audit_trail + [audit_entry])
 
-    def archive(self, reason: str, actor: str = "system") -> "GovernanceGate":
+    def archive(self, reason: str, actor: str = "system") -> GovernanceGate:
         audit_entry = {
             "timestamp": datetime.now(UTC).isoformat(),
             "actor": actor,

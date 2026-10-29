@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-import pytest
-
 from axel.data.models import Bar
 from axel.research.dataset import DatasetRegistry, DatasetVersion, PointInTimeChecker
 from axel.research.experiment import (

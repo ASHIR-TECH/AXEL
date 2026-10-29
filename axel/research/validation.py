@@ -115,7 +115,7 @@ def perturb_parameters(
             for multiplier in (1.0 + perturbation_ratio, 1.0 - perturbation_ratio):
                 new_dict = dict(base_params)
                 if isinstance(param_val, int):
-                    new_val = max(1, int(round(param_val * multiplier)))
+                    new_val = max(1, round(param_val * multiplier))
                 else:
                     new_val = round(param_val * multiplier, 6)
                 new_dict[param_name] = new_val

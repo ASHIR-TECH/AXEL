@@ -3,16 +3,27 @@
 from __future__ import annotations
 
 from axel.research.baseline import BaselineResult, compare_to_baselines, default_baselines
-from axel.research.dataset import DatasetLineage, DatasetRegistry, DatasetVersion, PointInTimeChecker, ensure_utc
-from axel.research.experiment import ExperimentConfig, ExperimentRun, ExperimentRunner, ExperimentStatus
+from axel.research.dataset import (
+    DatasetLineage,
+    DatasetRegistry,
+    DatasetVersion,
+    PointInTimeChecker,
+    ensure_utc,
+)
+from axel.research.experiment import (
+    ExperimentConfig,
+    ExperimentRun,
+    ExperimentRunner,
+    ExperimentStatus,
+)
 from axel.research.feature import FeatureDefinition, FeatureRegistry, FeatureVersion
 from axel.research.governance import GovernanceGate, PromotionState
 from axel.research.hypothesis import (
+    VALID_STATUS_TRANSITIONS,
     Hypothesis,
     HypothesisRegistry,
     HypothesisStatus,
     HypothesisVersion,
-    VALID_STATUS_TRANSITIONS,
 )
 from axel.research.pr import (
     RESTRICTED_PATH_PREFIXES,
@@ -43,59 +54,59 @@ from axel.research.validation import (
 )
 
 __all__ = [
-    # Hypothesis
-    "Hypothesis",
-    "HypothesisRegistry",
-    "HypothesisStatus",
-    "HypothesisVersion",
+    "RESTRICTED_PATH_PREFIXES",
     "VALID_STATUS_TRANSITIONS",
+    # Baseline
+    "BaselineResult",
+    # PR & Governance
+    "CodeChangeProposal",
     # Dataset
     "DatasetLineage",
     "DatasetRegistry",
     "DatasetVersion",
-    "PointInTimeChecker",
-    "ensure_utc",
-    # Feature
-    "FeatureDefinition",
-    "FeatureRegistry",
-    "FeatureVersion",
     # Experiment
     "ExperimentConfig",
     "ExperimentRun",
     "ExperimentRunner",
     "ExperimentStatus",
-    # Baseline
-    "BaselineResult",
-    "compare_to_baselines",
-    "default_baselines",
-    # Validation
-    "ValidationProtocol",
-    "holdout_split",
-    "perturb_parameters",
-    "purged_embargo_split",
-    "time_split",
-    "walk_forward_evaluate",
-    # Statistics
-    "brier_score",
-    "calibration_metrics",
-    "deflated_sharpe_ratio",
-    "expected_max_sharpe",
-    "log_loss",
-    "multiple_testing_correction",
-    "probabilistic_sharpe_ratio",
-    "sharpe_ratio_stderr",
+    # Feature
+    "FeatureDefinition",
+    "FeatureRegistry",
+    "FeatureVersion",
+    "GovernanceGate",
+    # Hypothesis
+    "Hypothesis",
+    "HypothesisRegistry",
+    "HypothesisStatus",
+    "HypothesisVersion",
+    "PointInTimeChecker",
+    "PromotionState",
+    "ProposalStatus",
+    # Orchestrator
+    "QuantResearchAgent",
     # Report
     "Recommendation",
     "ResearchReport",
+    # Validation
+    "ValidationProtocol",
+    # Statistics
+    "brier_score",
     "build_research_report",
-    # PR & Governance
-    "CodeChangeProposal",
-    "ProposalStatus",
-    "RESTRICTED_PATH_PREFIXES",
+    "calibration_metrics",
+    "compare_to_baselines",
+    "default_baselines",
+    "deflated_sharpe_ratio",
+    "ensure_utc",
+    "expected_max_sharpe",
+    "holdout_split",
     "is_restricted_path",
+    "log_loss",
+    "multiple_testing_correction",
+    "perturb_parameters",
+    "probabilistic_sharpe_ratio",
+    "purged_embargo_split",
+    "sharpe_ratio_stderr",
     "submit_proposal",
-    "GovernanceGate",
-    "PromotionState",
-    # Orchestrator
-    "QuantResearchAgent",
+    "time_split",
+    "walk_forward_evaluate",
 ]

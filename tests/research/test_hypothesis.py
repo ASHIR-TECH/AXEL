@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from axel.research.hypothesis import (
-    Hypothesis,
     HypothesisRegistry,
     HypothesisStatus,
 )
@@ -96,7 +95,7 @@ def test_duplicate_hypothesis_linking():
 
 def test_querying_by_status():
     registry = HypothesisRegistry()
-    h1 = registry.create(title="Draft 1", question="Q?")
+    registry.create(title="Draft 1", question="Q?")
     h2 = registry.create(title="Draft 2", question="Q?")
     registry.register(h2.hypothesis_id)
     h3 = registry.create(title="Rejected", question="Q?")
