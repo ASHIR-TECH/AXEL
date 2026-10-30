@@ -73,6 +73,11 @@ class Capability(StrEnum):
     QUOTES = "quotes"
     FUNDING_RATES = "funding_rates"
     OPEN_INTEREST = "open_interest"
+    PREDICTION_MARKETS = "prediction_markets"
+    PREDICTION_QUOTES = "prediction_quotes"
+    PREDICTION_ORDER_BOOK = "prediction_order_book"
+    PREDICTION_TRADES = "prediction_trades"
+    PREDICTION_BARS = "prediction_bars"
     HEALTH = "health"
 
 

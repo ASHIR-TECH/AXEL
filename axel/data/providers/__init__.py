@@ -23,6 +23,7 @@ from axel.data.providers.base import (
 from axel.data.providers.binance import BinancePublicMarketData
 from axel.data.providers.deribit import DeribitOptionsMarketData
 from axel.data.providers.fred import FredData, parse_observations
+from axel.data.providers.kalshi import KalshiPredictionMarketData
 from axel.data.providers.news import GdeltNews, parse_news
 from axel.data.providers.oanda import OandaMarketData
 from axel.data.providers.sec import SecEdgar, parse_filings
@@ -36,6 +37,7 @@ __all__ = [
     "DeribitOptionsMarketData",
     "FredData",
     "GdeltNews",
+    "KalshiPredictionMarketData",
     "MarketDataProvider",
     "OandaMarketData",
     "Provider",
