@@ -9,6 +9,7 @@ import httpx
 
 from axel.data.providers.base import ProviderResult, now_utc
 from axel.data.schemas import FilingRecord, Provenance, RawPayload, sha256_text
+from axel.observability.api_health import record_http_call
 
 BASE_URL = "https://data.sec.gov/submissions"
 
@@ -92,6 +93,7 @@ class SecEdgar:
         if not normalized.isdigit():
             raise ValueError("CIK must be numeric")
         response = self._client.get(f"{BASE_URL}/CIK{normalized}.json", headers=self._headers)
+        record_http_call("sec", "fetch_submissions", response)
         response.raise_for_status()
         return response
 
