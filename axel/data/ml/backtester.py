@@ -28,6 +28,7 @@ from enum import Enum
 from math import floor
 from typing import Protocol
 
+from axel.data.marketdata import FundingRateObservation
 from axel.data.ml.calendars import TradingCalendar, calendar_for_bars
 from axel.data.ml.corporate_actions import (
     Delisting,
@@ -37,7 +38,8 @@ from axel.data.ml.corporate_actions import (
     dividend_cash,
     dividends_by_symbol,
 )
-from axel.data.ml.costs import ZERO_COSTS, CostModel
+from axel.data.ml.costs import ZERO_COSTS, CostModel, FinancingModel
+from axel.data.ml.execution import ExecutionModel, RejectionReason
 from axel.data.ml.metrics import summarize
 from axel.data.ml.risk_model import RiskModel
 from axel.data.ml.slippage import FixedBpsSlippage, SlippageModel
@@ -88,6 +90,7 @@ class Trade:
     pnl: float
     risk: float = 0.0
     exit_reason: ExitReason = ExitReason.SIGNAL
+    carry: float = 0.0
 
     @property
     def r_multiple(self) -> float:
@@ -102,6 +105,20 @@ class Fill:
     price: float
     commission: float
     slippage: float
+    requested_quantity: float | None = None
+    rejected_quantity: float = 0.0
+    rejection_reason: RejectionReason | None = None
+
+
+@dataclass(frozen=True)
+class Rejection:
+    """An order, or the unfilled remainder of one, that did not execute."""
+
+    timestamp: datetime
+    symbol: str
+    requested_quantity: float
+    reason: RejectionReason
+    capacity: float | None = None
 
 
 @dataclass(frozen=True)
@@ -116,10 +133,19 @@ class BacktestResult:
     execution_delays: tuple[int, ...] = ()
     delay_unit: str = "bar"
     calendar: TradingCalendar | None = None
+    funding_paid: float = 0.0
+    financing_paid: float = 0.0
+    rejections: tuple[Rejection, ...] = ()
+    execution_assumptions: tuple[tuple[str, str], ...] = ()
 
     @property
     def ending_equity(self) -> float:
         return self.equity_curve[-1][1] if self.equity_curve else self.starting_equity
+
+    @property
+    def total_carry(self) -> float:
+        """Net funding plus financing paid; negative means carry was received."""
+        return self.funding_paid + self.financing_paid
 
     @property
     def mean_execution_delay(self) -> float:
@@ -133,6 +159,10 @@ class BacktestResult:
         result["max_execution_delay"] = float(max(self.execution_delays, default=0))
         result["dividends_received"] = self.dividends_received
         result["delisted"] = float(len(self.delisted_symbols))
+        result["funding_paid"] = self.funding_paid
+        result["financing_paid"] = self.financing_paid
+        result["total_carry"] = self.total_carry
+        result["rejections"] = float(len(self.rejections))
         return result
 
 
@@ -143,6 +173,7 @@ class _Position:
     entry_time: datetime | None = None
     open_cost: float = 0.0
     risk: float = 0.0
+    carry: float = 0.0
 
 
 class Backtester:
@@ -159,6 +190,8 @@ class Backtester:
         infer_calendar: bool = True,
         risk_model: RiskModel | None = None,
         risk_engine: TailRiskEngine | None = None,
+        financing: FinancingModel | None = None,
+        execution: ExecutionModel | None = None,
     ) -> None:
         if starting_equity <= 0:
             raise ValueError("starting_equity must be positive")
@@ -176,6 +209,8 @@ class Backtester:
         self.infer_calendar = infer_calendar
         self.risk_model = risk_model
         self.risk_engine = risk_engine
+        self.financing = financing or FinancingModel()
+        self.execution = execution or ExecutionModel()
 
     def run(
         self,
@@ -185,6 +220,7 @@ class Backtester:
         dividends: Sequence[Dividend] = (),
         delistings: Sequence[Delisting] = (),
         dividend_mode: DividendMode = DividendMode.NONE,
+        funding_rates: Sequence[FundingRateObservation] = (),
     ) -> BacktestResult:
         series = {
             symbol: sorted(bars, key=lambda bar: bar.event_time)
@@ -193,6 +229,7 @@ class Backtester:
         }
         dividend_map = dividends_by_symbol(dividends)
         delisting_map = delistings_by_symbol(delistings)
+        funding_map = self._funding_by_symbol(series, funding_rates)
         calendar = self.calendar
         if calendar is None and self.infer_calendar:
             calendar = calendar_for_bars(
@@ -233,13 +270,37 @@ class Backtester:
         delisted: set[str] = set()
         fills: list[Fill] = []
         trades: list[Trade] = []
+        rejections: list[Rejection] = []
         curve: list[tuple[datetime, float]] = []
         pending: dict[str, float] = {}
         decided_at: dict[str, datetime] = {}
         delays: list[int] = []
         asset_returns: dict[str, list[float]] = {symbol: [] for symbol in series}
+        funding_cursor = {symbol: 0 for symbol in funding_map}
+        funding_paid = [0.0]
+        financing_paid = [0.0]
+        previous_timestamp: datetime | None = None
 
         for timestamp in schedule:
+            if previous_timestamp is not None:
+                cash = self._accrue_financing(
+                    previous_timestamp,
+                    timestamp,
+                    positions,
+                    last_price,
+                    cash,
+                    financing_paid,
+                )
+            cash = self._apply_funding(
+                timestamp,
+                funding_map,
+                funding_cursor,
+                positions,
+                last_price,
+                cash,
+                funding_paid,
+            )
+            previous_timestamp = timestamp
             cash = self._credit_dividends(
                 timestamp,
                 dividend_mode,
@@ -285,6 +346,7 @@ class Backtester:
                         cost_total,
                         history[symbol],
                         asset_returns if self.risk_engine is not None else None,
+                        rejections,
                     )
                 history[symbol].append(bar)
                 previous_close = last_price.get(symbol)
@@ -343,6 +405,158 @@ class Backtester:
             execution_delays=tuple(delays),
             delay_unit="session" if calendar is not None else "bar",
             calendar=calendar,
+            funding_paid=funding_paid[0],
+            financing_paid=financing_paid[0],
+            rejections=tuple(rejections),
+            execution_assumptions=self._execution_assumptions(calendar),
+        )
+
+    @staticmethod
+    def _funding_by_symbol(
+        series: Mapping[str, Sequence[BarRecord]],
+        funding_rates: Sequence[FundingRateObservation],
+    ) -> dict[str, tuple[FundingRateObservation, ...]]:
+        """Map canonical funding observations onto the backtest's symbol keys."""
+        symbol_by_instrument: dict[str, str] = {}
+        for symbol, bars in series.items():
+            symbol_by_instrument[symbol] = symbol
+            instrument_id = bars[0].instrument_id
+            if instrument_id:
+                existing = symbol_by_instrument.get(instrument_id)
+                if existing is not None and existing != symbol:
+                    raise ValueError(
+                        f"instrument_id {instrument_id!r} maps to both {existing!r} "
+                        f"and {symbol!r}"
+                    )
+                symbol_by_instrument[instrument_id] = symbol
+
+        grouped: dict[str, dict[str, FundingRateObservation]] = {}
+        for observation in funding_rates:
+            symbol = symbol_by_instrument.get(observation.instrument_id)
+            if symbol is None:
+                # A caller may run a subset of a larger funding universe.
+                continue
+            grouped.setdefault(symbol, {})[observation.key()] = observation
+        return {
+            symbol: tuple(
+                sorted(items.values(), key=lambda item: (item.event_time, item.available_at))
+            )
+            for symbol, items in grouped.items()
+        }
+
+    def _accrue_financing(
+        self,
+        start: datetime,
+        end: datetime,
+        positions: Mapping[str, _Position],
+        last_price: Mapping[str, float],
+        cash: float,
+        paid: list[float],
+    ) -> float:
+        """Charge long financing and short borrow for the elapsed calendar time."""
+        for symbol, position in positions.items():
+            if position.quantity == 0:
+                continue
+            price = last_price.get(symbol)
+            if price is None or price <= 0:
+                raise ValueError(
+                    f"cannot accrue financing for {symbol!r} without a prior mark price"
+                )
+            charge = self.financing.accrual(
+                position.quantity, price, start, end
+            )
+            if charge:
+                cash -= charge
+                paid[0] += charge
+                position.carry += charge
+        return cash
+
+    def _apply_funding(
+        self,
+        timestamp: datetime,
+        funding_map: Mapping[str, Sequence[FundingRateObservation]],
+        cursor: dict[str, int],
+        positions: Mapping[str, _Position],
+        last_price: Mapping[str, float],
+        cash: float,
+        paid: list[float],
+    ) -> float:
+        """Apply funding events at the first timestamp at or after their event time.
+
+        Funding is charged against the position held before any execution at
+        ``timestamp``, which is the position that was actually exposed when the
+        event occurred. A late-arriving observation fails closed rather than
+        being charged against a position that did not hold it.
+        """
+        for symbol, observations in funding_map.items():
+            index = cursor.get(symbol, 0)
+            while index < len(observations):
+                observation = observations[index]
+                if observation.event_time > timestamp:
+                    break
+                if observation.available_at > timestamp:
+                    raise ValueError(
+                        f"funding observation for {symbol!r} at "
+                        f"{observation.event_time.isoformat()} is not available until "
+                        f"{observation.available_at.isoformat()}; funding must be "
+                        "point-in-time to be charged"
+                    )
+                position = positions.get(symbol)
+                if position is not None and position.quantity != 0:
+                    price = (
+                        observation.mark_price
+                        or observation.index_price
+                        or last_price.get(symbol)
+                    )
+                    if price is None or price <= 0:
+                        raise ValueError(
+                            f"cannot apply funding for {symbol!r} without a mark price"
+                        )
+                    payment = observation.funding_payment(position.quantity, price)
+                    cash -= payment
+                    paid[0] += payment
+                    position.carry += payment
+                index += 1
+            cursor[symbol] = index
+        return cash
+
+    def _execution_assumptions(
+        self, calendar: TradingCalendar | None
+    ) -> tuple[tuple[str, str], ...]:
+        """Document every execution assumption carried by this result."""
+        return (
+            (
+                "decision_clock",
+                "targets use bars with available_at <= t; fills occur at the next bar open",
+            ),
+            ("commission", repr(self.costs)),
+            ("slippage", repr(self.slippage)),
+            ("fill_model", repr(self.execution)),
+            ("financing", repr(self.financing)),
+            (
+                "funding",
+                (
+                    "venue funding is applied at the first timestamp at or after "
+                    "event_time and only when available_at <= that timestamp; "
+                    "positive rate means longs pay shorts"
+                ),
+            ),
+            (
+                "liquidation",
+                (
+                    "forced terminal close fills in full at the last price with "
+                    "slippage and commission"
+                ),
+            ),
+            (
+                "calendar",
+                type(calendar).__name__ if calendar is not None else "bar-count (no calendar)",
+            ),
+            ("taxes", "not modelled; supply after-tax returns if required"),
+            (
+                "settlement",
+                "cash settlement with immediate proceeds; no T+1 settlement lag",
+            ),
         )
 
     def _delay(
@@ -530,6 +744,7 @@ class Backtester:
         cost_total: list[float],
         history: Sequence[BarRecord],
         asset_returns: Mapping[str, Sequence[float]] | None = None,
+        rejections: list[Rejection] | None = None,
     ) -> float:
         reference = bar.open
         if reference <= 0:
@@ -539,27 +754,56 @@ class Backtester:
             symbol, target, reference, equity, positions, asset_returns
         )
         position = positions.get(symbol, _Position())
-        delta = target - position.quantity
-        if abs(delta) < self._min_trade():
+        requested = target - position.quantity
+        if abs(requested) < self._min_trade():
             return cash
-        side = 1 if delta > 0 else -1
-        price = self.slippage.adjust(reference, delta, side=side, bar=bar)
-        commission = self.costs.commission(delta * price)
-        cash -= delta * price + commission
+
+        plan = self.execution.plan(requested, bar)
+        filled = self._round_lot(plan.filled_quantity)
+        if abs(filled) < self._min_trade():
+            if rejections is not None:
+                rejections.append(
+                    Rejection(
+                        timestamp=timestamp,
+                        symbol=symbol,
+                        requested_quantity=requested,
+                        reason=plan.rejection_reason or RejectionReason.BELOW_MINIMUM,
+                        capacity=plan.capacity,
+                    )
+                )
+            return cash
+        if abs(filled) < abs(requested) and rejections is not None:
+            rejections.append(
+                Rejection(
+                    timestamp=timestamp,
+                    symbol=symbol,
+                    requested_quantity=requested - filled,
+                    reason=plan.rejection_reason or RejectionReason.BELOW_MINIMUM,
+                    capacity=plan.capacity,
+                )
+            )
+
+        side = 1 if filled > 0 else -1
+        price = self.slippage.adjust(reference, filled, side=side, bar=bar)
+        commission = self.costs.commission(filled * price)
+        cash -= filled * price + commission
         cost_total[0] += commission
         fills.append(
             Fill(
                 timestamp=timestamp,
                 symbol=symbol,
-                quantity=delta,
+                quantity=filled,
                 price=price,
                 commission=commission,
-                slippage=abs(price - reference) * abs(delta),
+                slippage=abs(price - reference) * abs(filled),
+                requested_quantity=requested,
+                rejected_quantity=requested - filled,
+                rejection_reason=plan.rejection_reason,
             )
         )
         self._book(
             symbol,
-            delta,
+            filled,
             price,
             commission,
             timestamp,
@@ -591,9 +835,10 @@ class Backtester:
         if position.quantity != 0 and position.quantity * remaining < 0:
             close_quantity = min(abs(remaining), abs(position.quantity))
             sign = 1 if position.quantity > 0 else -1
-            share = close_quantity / total
+            share = close_quantity / abs(position.quantity)
             gross = (price - position.avg_price) * close_quantity * sign
             cost = position.open_cost * share + commission * share
+            carry = position.carry * share
             risk = position.risk * share
             trades.append(
                 Trade(
@@ -605,18 +850,21 @@ class Backtester:
                     exit_price=price,
                     gross_pnl=gross,
                     costs=cost,
-                    pnl=gross - cost,
+                    pnl=gross - cost - carry,
                     risk=risk,
                     exit_reason=exit_reason,
+                    carry=carry,
                 )
             )
             position.open_cost -= position.open_cost * share
+            position.carry -= carry
             position.risk -= risk
             position.quantity -= close_quantity * sign
             remaining -= close_quantity * (1 if delta > 0 else -1)
             if position.quantity == 0:
                 position.avg_price = 0.0
                 position.entry_time = None
+                position.carry = 0.0
         if remaining != 0:
             share = abs(remaining) / total
             open_commission = commission * share
@@ -661,6 +909,7 @@ class Backtester:
                 price=price,
                 commission=0.0,
                 slippage=0.0,
+                requested_quantity=-position.quantity,
             )
         )
         commission = self.costs.commission(position.quantity * price) if charge_costs else 0.0
@@ -710,6 +959,7 @@ class Backtester:
                     price=price,
                     commission=commission,
                     slippage=abs(price - reference) * abs(position.quantity),
+                    requested_quantity=-position.quantity,
                 )
             )
             self._book(
@@ -733,6 +983,7 @@ __all__ = [
     "DividendMode",
     "ExitReason",
     "Fill",
+    "Rejection",
     "TargetStrategy",
     "Trade",
 ]

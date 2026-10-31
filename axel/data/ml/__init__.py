@@ -8,6 +8,7 @@ from axel.data.ml.backtester import (
     DividendMode,
     ExitReason,
     Fill,
+    Rejection,
     TargetStrategy,
     Trade,
 )
@@ -27,7 +28,8 @@ from axel.data.ml.corporate_actions import (
     apply_corporate_actions,
     apply_dividends,
 )
-from axel.data.ml.costs import ZERO_COSTS, CostModel
+from axel.data.ml.costs import NO_FINANCING, ZERO_COSTS, CostModel, FinancingModel
+from axel.data.ml.execution import ExecutionModel, ExecutionPlan, RejectionReason
 from axel.data.ml.metrics import (
     cagr,
     curve_years,
@@ -61,6 +63,7 @@ from axel.data.ml.splits import Split, apply_splits
 
 __all__ = [
     "DEFAULT_CALENDAR",
+    "NO_FINANCING",
     "NO_SLIPPAGE",
     "TRADING_DAYS_PER_YEAR",
     "US_EQUITY_CALENDAR",
@@ -71,12 +74,17 @@ __all__ = [
     "Delisting",
     "Dividend",
     "DividendMode",
+    "ExecutionModel",
+    "ExecutionPlan",
     "ExitReason",
     "Fill",
+    "FinancingModel",
     "FixedBpsSlippage",
     "FixedFractionalRiskModel",
     "ListingRecord",
     "PointInTimeUniverse",
+    "Rejection",
+    "RejectionReason",
     "RiskModel",
     "SlippageModel",
     "Split",

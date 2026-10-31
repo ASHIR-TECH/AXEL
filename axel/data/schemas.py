@@ -128,6 +128,7 @@ class BarRecord:
     volume: float
     adjustment_status: str
     provenance: Provenance
+    instrument_id: str | None = None
     record_type: str = field(default="bar", init=False)
 
     def __post_init__(self) -> None:
@@ -145,7 +146,8 @@ class BarRecord:
             )
 
     def key(self) -> str:
-        return f"bar:{self.venue}:{self.symbol}:{self.event_time.isoformat()}"
+        identity = self.instrument_id or f"{self.venue}:{self.symbol}"
+        return f"bar:{identity}:{self.event_time.isoformat()}"
 
 
 @dataclass(frozen=True)
@@ -260,6 +262,7 @@ def record_to_dict(record: CanonicalRecord) -> dict[str, Any]:
             "close": record.close,
             "volume": record.volume,
             "adjustment_status": record.adjustment_status,
+            "instrument_id": record.instrument_id,
         }
     if isinstance(record, MacroObservation):
         return base | {
@@ -308,6 +311,7 @@ def record_from_dict(data: dict[str, Any]) -> CanonicalRecord:
             volume=float(data["volume"]),
             adjustment_status=data["adjustment_status"],
             provenance=prov,
+            instrument_id=data.get("instrument_id"),
         )
     if kind == "macro":
         return MacroObservation(
