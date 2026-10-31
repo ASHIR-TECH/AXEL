@@ -45,6 +45,7 @@ from axel.execution.broker_base import (
     parse_decimal_or_none,
     sanitize_payload,
 )
+from axel.observability.api_health import ApiOutcome, record_api_error, record_http_call
 
 # Alpaca statuses -> AXEL canonical lifecycle.
 _STATUS_MAP: dict[str, OrderState] = {
@@ -172,8 +173,15 @@ class AlpacaAdapter(BrokerAdapter):
             return True
         try:
             resp = self._http().get(f"{self.base_url}/v2/account")
+            self._observe("warmup", resp)
             return 200 <= resp.status_code < 300
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
+            record_api_error(
+                "alpaca",
+                "warmup",
+                ApiOutcome.NETWORK_ERROR,
+                detail=type(exc).__name__,
+            )
             return False
 
     def close(self) -> None:
@@ -204,6 +212,19 @@ class AlpacaAdapter(BrokerAdapter):
             return sanitized
         return {"payload": sanitized}
 
+    def _observe(
+        self,
+        operation: str,
+        response: httpx.Response,
+        *,
+        detail: str | None = None,
+    ) -> httpx.Response:
+        """Record one broker HTTP outcome without changing control flow."""
+        if self.mock_mode:
+            return response
+        record_http_call("alpaca", operation, response, detail=detail)
+        return response
+
     def _broker_order_from_payload(self, data: dict) -> BrokerOrder:
         return BrokerOrder(
             broker_order_id=str(data.get("id", "")),
@@ -229,7 +250,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/account"
         with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers())
-            resp.raise_for_status()
+            self._observe("get_account_summary", resp).raise_for_status()
             data = resp.json()
             return {
                 "total_equity": float(data.get("equity", 0.0)),
@@ -250,7 +271,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/account"
         with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers())
-            resp.raise_for_status()
+            self._observe("get_account", resp).raise_for_status()
             data = resp.json()
         account_id = str(data.get("account_number") or data.get("id") or self.account_id)
         return BrokerAccount(
@@ -269,7 +290,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/positions"
         with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers())
-            resp.raise_for_status()
+            self._observe("get_positions", resp).raise_for_status()
             positions = []
             for item in resp.json():
                 side = OrderSide.BUY if float(item.get("qty", 0.0)) >= 0 else OrderSide.SELL
@@ -293,7 +314,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/orders"
         with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers(), params={"status": "open", "limit": 500})
-            resp.raise_for_status()
+            self._observe("get_open_orders", resp).raise_for_status()
             return [self._broker_order_from_payload(item) for item in resp.json()]
 
     def get_order(self, broker_order_id: str) -> BrokerOrder | None:
@@ -304,6 +325,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/orders/{broker_order_id}"
         with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers())
+            self._observe("get_order", resp)
             if resp.status_code == 404:
                 return None
             resp.raise_for_status()
@@ -316,6 +338,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/orders:by_client_order_id"
         with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers(), params={"client_order_id": client_order_id})
+            self._observe("find_order_by_client_id", resp)
             if resp.status_code == 404:
                 return None
             resp.raise_for_status()
@@ -333,7 +356,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/account/activities"
         with self._client_ctx() as client:
             resp = client.get(url, headers=self._headers(), params=params)
-            resp.raise_for_status()
+            self._observe("list_fills", resp).raise_for_status()
             fills: list[BrokerFill] = []
             for item in resp.json():
                 fills.append(
@@ -366,6 +389,7 @@ class AlpacaAdapter(BrokerAdapter):
         try:
             with self._client_ctx() as client:
                 resp = client.get(url, headers=self._headers())
+            self._observe("health_check", resp)
             latency = (self.clock.now() - started).total_seconds() * 1000.0
             return BrokerHealth(
                 healthy=resp.status_code == 200,
@@ -374,6 +398,12 @@ class AlpacaAdapter(BrokerAdapter):
                 detail=None if resp.status_code == 200 else f"HTTP {resp.status_code}",
             )
         except httpx.HTTPError as exc:  # pragma: no cover - network path
+            record_api_error(
+                "alpaca",
+                "health_check",
+                ApiOutcome.NETWORK_ERROR,
+                detail=type(exc).__name__,
+            )
             return BrokerHealth(healthy=False, checked_at=now, detail=type(exc).__name__)
 
     # ── Mutating ────────────────────────────────────────────────────────────
@@ -400,14 +430,37 @@ class AlpacaAdapter(BrokerAdapter):
                 resp = client.post(url, headers=self._headers(), json=payload)
         except httpx.TimeoutException as exc:
             # The request may have reached the venue; the outcome is unknown.
+            record_api_error(
+                "alpaca",
+                "submit_order",
+                ApiOutcome.TIMEOUT,
+                detail=f"submit timed out for {order.client_order_id}",
+                payload={"client_order_id": order.client_order_id, "symbol": order.symbol},
+            )
             raise AmbiguousSubmissionError(
                 f"Alpaca submit timed out for {order.client_order_id}; outcome unknown."
             ) from exc
         except httpx.TransportError as exc:
+            record_api_error(
+                "alpaca",
+                "submit_order",
+                ApiOutcome.NETWORK_ERROR,
+                detail=f"{type(exc).__name__} for {order.client_order_id}",
+                payload={"client_order_id": order.client_order_id, "symbol": order.symbol},
+            )
             raise RetryableBrokerError(
                 f"Alpaca transport error for {order.client_order_id}: {type(exc).__name__}."
             ) from exc
 
+        self._observe(
+            "submit_order",
+            resp,
+            detail=(
+                str(self._raw_response(_safe_json(resp)))[:1000]
+                if resp.status_code >= 400
+                else None
+            ),
+        )
         if resp.status_code >= 500:
             raise RetryableBrokerError(f"Alpaca server error {resp.status_code} on submit.")
         if 400 <= resp.status_code < 500:
@@ -604,6 +657,7 @@ class AlpacaAdapter(BrokerAdapter):
             return BrokerCancelResult(client_order_id=client_order_id, accepted=False, detail="order not found")
         with self._client_ctx() as client:
             del_resp = client.delete(f"{self.base_url}/v2/orders/{found.broker_order_id}", headers=self._headers())
+            self._observe("cancel_order", del_resp)
             accepted = del_resp.status_code in (200, 204)
             return BrokerCancelResult(
                 client_order_id=client_order_id,
@@ -625,7 +679,7 @@ class AlpacaAdapter(BrokerAdapter):
         url = f"{self.base_url}/v2/orders"
         with self._client_ctx() as client:
             resp = client.delete(url, headers=self._headers())
-            resp.raise_for_status()
+            self._observe("cancel_all_orders", resp).raise_for_status()
             data = resp.json()
             return len(data) if isinstance(data, list) else 0
 
