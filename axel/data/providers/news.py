@@ -10,6 +10,7 @@ import httpx
 
 from axel.data.providers.base import ProviderResult, now_utc
 from axel.data.schemas import NewsRecord, Provenance, RawPayload, sha256_text
+from axel.observability.api_health import record_http_call
 
 ENDPOINT = "https://api.gdeltproject.org/api/v2/doc/doc"
 
@@ -85,6 +86,7 @@ class GdeltNews:
                 "maxrecords": max_records,
             },
         )
+        record_http_call("news", "fetch_news", response)
         response.raise_for_status()
         records = parse_news(response.text)
         raw = RawPayload(
