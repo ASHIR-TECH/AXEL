@@ -7,6 +7,7 @@ from pathlib import Path
 from time import sleep
 
 from axel.core.config import settings
+from axel.core.logging import log_event, setup_logging
 from axel.db.session import init_db
 
 HEARTBEAT_PATH = Path("/tmp/axel-paper-soak-heartbeat")
@@ -20,7 +21,12 @@ def validate_paper_mode() -> None:
 def tick() -> None:
     """Record liveness. Trade generation is intentionally attached separately after validation."""
     HEARTBEAT_PATH.write_text(datetime.now(UTC).isoformat(), encoding="utf-8")
-    print("paper-soak heartbeat recorded; no live trading path is enabled", flush=True)
+    log_event(
+        "info",
+        "paper_soak_heartbeat",
+        "paper-soak heartbeat recorded; no live trading path is enabled",
+        heartbeat_path=str(HEARTBEAT_PATH),
+    )
 
 
 def main() -> int:
@@ -31,6 +37,13 @@ def main() -> int:
     if args.interval_seconds < 10:
         parser.error("--interval-seconds must be at least 10")
 
+    setup_logging(
+        settings.log_level,
+        log_file=settings.log_file,
+        max_bytes=settings.log_max_bytes,
+        backup_count=settings.log_backup_count,
+        force=True,
+    )
     validate_paper_mode()
     init_db()
     tick()
