@@ -173,6 +173,7 @@ axel/                      # the AXEL package
 ├── signals/               # Telegram ingestion → Signal → risk-gated Proposal
 ├── comms/                 # alert payloads + Telegram transport
 ├── dashboard/             # read-only decision-log projections and static terminal UI
+├── observability/         # read-only Prometheus exporter + Alertmanager relay
 └── db/                    # 26+ SQLAlchemy models, session factories, init_db()
 
 migrations/                # Alembic (schema can also be created via init_db())
@@ -183,6 +184,8 @@ scripts/
 ├── verify_phase2_pipeline.py# live read-only verification of Phase 2 providers
 ├── run_paper_soak.py        # Phase 5 paper-soak heartbeat/evidence runner
 ├── run_tele_signal_listener.py # Telegram signal ingestion
+├── run_metrics_exporter.py  # read-only Prometheus exporter on :9108
+├── run_alert_relay.py       # Alertmanager → PagerDuty/Telegram/webhook relay
 └── check_agent_config.py    # LLM provider/config validation
 
 tests/                       # 101 test modules, 894 tests
@@ -194,7 +197,8 @@ tests/                       # 101 test modules, 894 tests
 └── conftest.py              # shared fixtures
 
 repos/                       # cloned reference implementations (see §10)
-docker-compose.yml           # TimescaleDB (Postgres 16) :5432 · Redis 7 :6379
+monitoring/                  # Prometheus · Alertmanager · Grafana provisioning
+docker-compose.yml           # TimescaleDB · Redis · exporter · Prometheus · Alertmanager · Grafana
 .github/workflows/verify.yml # CI: ruff → boundary lint → pytest
 ```
 
@@ -611,12 +615,92 @@ flowchart LR
 | `docs/phase-6-runbook.md` | Tiny-live operational runbook, halting and recovery |
 | `docs/phase-7-implementation.md` | Crypto vertical: data, risk, strategies, backtest, paper and promotion |
 | `docs/phase-11-implementation.md` | Cross-asset portfolio intelligence and capital allocation |
+| `docs/monitoring-and-alerting.md` | Prometheus, Grafana, Alertmanager, PagerDuty/Telegram paging and Docker Compose |
+| `docs/logging-and-api-health.md` | JSON log events, API quota/auth/rate-limit detection, failed-transaction events and troubleshooting |
 | `phases/AXEL_PHASE_8_OPTIONS_RESEARCH_AND_IMPLEMENTATION.md` | Options research scope (Phase 8 is **not** complete) |
 | `phases/AXEL_PHASE_9_BETS_PREDICTION_MARKETS_RESEARCH_AND_IMPLEMENTATION.md` | Prediction-market research scope and legal gate |
 | `phases/how-the-app-works.md` | Deep code walkthrough of the implemented system |
 | `phases/run-and-debug.md` | Operator runbook |
 | `docs/run-paper-data-and-agents.md` | Running data providers + agent service in paper mode |
 | `docs/phase-0-1-audit-and-phase-3-4-plan.md` | Audit of the Phase 0–1 core + plan for the agent/dashboard phases |
+
+---
+
+## 16. Monitoring, alerting and containers
+
+`docker compose up -d` starts the database plus a read-only monitoring stack. Add
+`--profile paper` to include the paper-soak worker and the static dashboard.
+
+| Service | Default URL | Purpose |
+|---|---|---|
+| `axel-exporter` | http://localhost:9108/metrics | Read-only Prometheus exporter over the DB, kill-switch and halt state |
+| `prometheus` | http://localhost:9090 | Scrapes the exporter and evaluates safety alert rules |
+| `alertmanager` | http://localhost:9093 | Groups/deduplicates alerts and forwards them to the relay |
+| `axel-alert-relay` | http://localhost:9110 | Pages PagerDuty and/or sends Telegram/webhook notifications |
+| `grafana` | http://localhost:3000 | Provisioned **AXEL — Trading Safety & Operations** dashboard |
+
+```bash
+docker compose up -d
+# or, including the paper soak and dashboard:
+docker compose --profile paper up -d
+
+curl -fsS http://localhost:9108/healthz
+curl -fsS http://localhost:9108/metrics | head
+```
+
+The exporter never writes to the database, submits an order, or changes risk
+state. It reads durable state only, and a failed scrape is reported as
+`axel_exporter_last_scrape_success 0` instead of disappearing silently.
+
+Paging is configured in `.env` (see [`monitoring/.env.example`](monitoring/.env.example)):
+
+```dotenv
+PAGERDUTY_INTEGRATION_KEY=...
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_OPERATOR_CHAT_ID=...
+ALERT_WEBHOOK_URL=
+ALERT_RELAY_DRY_RUN=false
+```
+
+Alerts cover kill-switch/halt activation, drawdown thresholds, critical
+incidents, reconciliation drift/staleness, unreconciled orders, pending
+approvals, exporter failures and unexpected live activation. The relay sends
+PagerDuty `trigger`/`resolve` events keyed by the Alertmanager fingerprint.
+
+### Logging and API health
+
+Every external call and order transition is logged as one JSON object per line.
+Set `LOG_FILE` to also write a rotating file:
+
+```dotenv
+LOG_FILE=/var/log/axel/axel.log
+LOG_MAX_BYTES=10000000
+LOG_BACKUP_COUNT=5
+```
+
+Credentials are redacted before serialisation. Stable events make failures
+greppable: `api_quota_exhausted`, `api_auth_failed`, `api_rate_limited`,
+`llm_budget_exceeded`, `order_rejected`, `order_submit_failed`,
+`order_submission_ambiguous` and `order_cancel_failed`.
+
+Provider health is persisted to `api_provider_state` and failures to the
+append-only `operational_events` table, so the read-only exporter can expose:
+
+```promql
+axel_api_quota_exhausted > 0          # a token/credit is finished
+axel_order_failures_total > 0         # a transaction did not go through
+```
+
+The matching alerts are `AxelApiQuotaExhausted`, `AxelApiAuthFailure`,
+`AxelApiRateLimited`, `AxelApiProviderStale`, `AxelApiProviderUnhealthy`,
+`AxelLlmBudgetExceeded`, `AxelOrderRejected`, `AxelOrderSubmissionFailed` and
+`AxelOperationalEventBurst`.
+
+All monitoring ports are bound to `127.0.0.1` by default. See
+[`docs/monitoring-and-alerting.md`](docs/monitoring-and-alerting.md) for the
+metric catalogue, alert rules, PagerDuty setup and security notes, and
+[`docs/logging-and-api-health.md`](docs/logging-and-api-health.md) for the event
+catalogue and token/transaction troubleshooting.
 
 ---
 
