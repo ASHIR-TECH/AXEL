@@ -9,6 +9,7 @@ import httpx
 
 from axel.data.providers.base import ProviderResult, now_utc
 from axel.data.schemas import MacroObservation, Provenance, RawPayload, sha256_text
+from axel.observability.api_health import record_http_call
 
 ENDPOINT = "https://api.stlouisfed.org/fred/series/observations"
 
@@ -74,6 +75,7 @@ class FredData:
                 "realtime_end": realtime_as_of,
             },
         )
+        record_http_call("fred", "fetch_observations", response)
         response.raise_for_status()
         records = parse_observations(response.text, series_id=series_id)
         raw = RawPayload(
@@ -100,5 +102,6 @@ class FredData:
                 "realtime_end": realtime_as_of,
             },
         )
+        record_http_call("fred", "observations", response)
         response.raise_for_status()
         return [item for item in response.json().get("observations", []) if item.get("value") != "."]

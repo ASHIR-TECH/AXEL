@@ -10,6 +10,7 @@ import httpx
 from axel.data.models import Bar
 from axel.data.providers.base import ProviderResult, now_utc
 from axel.data.schemas import BarRecord, Provenance, RawPayload, parse_dt, sha256_text
+from axel.observability.api_health import record_http_call
 
 BASE_URL = "https://data.alpaca.markets/v2"
 
@@ -104,6 +105,7 @@ class AlpacaMarketData:
                 "feed": "iex",
             },
         )
+        record_http_call("alpaca-data", "fetch_bars", response)
         response.raise_for_status()
         records = parse_bars(
             response.text, symbol=symbol, venue=self.venue, timeframe=timeframe

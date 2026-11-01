@@ -92,7 +92,7 @@ class HaltController:
         halt_cancel_policy: HaltScope | None = None,
     ):
         self.clock = clock or RealClock()
-        self.state_file = state_file_path or Path(".axel_halt.json")
+        self.state_file = state_file_path or Path(settings.halt_state_file)
         self._halted: bool = False
         self._scope: HaltScope | None = None
         self._section: Section | None = None

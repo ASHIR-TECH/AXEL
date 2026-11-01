@@ -21,6 +21,11 @@ class AxelSettings(BaseSettings):
     live_trading_confirmed: bool = False
     log_level: str = "INFO"
 
+    # Logging. Empty LOG_FILE keeps stdout-only output (Docker/journald).
+    log_file: str = ""
+    log_max_bytes: int = 10_000_000
+    log_backup_count: int = 5
+
     # Database & Storage
     database_url: str = "sqlite:///./axel.db"
     redis_url: str = "redis://localhost:6379/0"
@@ -51,6 +56,25 @@ class AxelSettings(BaseSettings):
     # Data providers. These are read-only credentials; execution stays isolated.
     fred_api_key: SecretStr | None = None
     sec_user_agent: str | None = None
+
+    # Monitoring / alerting. All defaults keep the exporter and relay bound to
+    # loopback when run outside Docker; Compose overrides the bind address.
+    metrics_host: str = "127.0.0.1"
+    metrics_port: int = 9108
+    alert_relay_host: str = "127.0.0.1"
+    alert_relay_port: int = 9110
+    # These are shared with the trading process so the exporter can read the
+    # kill-switch and halt state written by the core.
+    killswitch_state_file: str = ".axel_killswitch.json"
+    halt_state_file: str = ".axel_halt.json"
+    # Pager / notification routing. Empty values disable that channel.
+    pagerduty_integration_key: SecretStr | None = None
+    alert_webhook_url: str = ""
+    alert_relay_dry_run: bool = False
+    # Durable operational event log (API failures, rejected orders, quota
+    # exhaustion). The exporter reads it to expose alertable metrics.
+    persist_operational_events: bool = True
+    operational_event_retention_days: int = 30
 
     # Hardcoded Risk Defaults (Read-only baseline)
     global_kill_pct: float = 0.10          # 10% account max drawdown

@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import httpx
 
 from axel.comms.alerts import SEVERITY_CRITICAL, Alert
+from axel.observability.api_health import ApiOutcome, record_api_error, record_http_call
 
 logger = logging.getLogger("axel")
 
@@ -88,6 +89,7 @@ class TelegramTransport:
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
                 resp = client.post(url, json=payload)
+                record_http_call("telegram", "send_message", resp)
                 resp.raise_for_status()
                 logger.info(
                     "TelegramTransport: alert delivered.",
@@ -95,6 +97,13 @@ class TelegramTransport:
                 )
                 return True
         except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            record_api_error(
+                "telegram",
+                "send_message",
+                ApiOutcome.TIMEOUT if isinstance(exc, httpx.TimeoutException) else ApiOutcome.NETWORK_ERROR,
+                detail=str(exc),
+                payload={"kind": alert.kind},
+            )
             logger.error(
                 "TelegramTransport: delivery failed.",
                 extra={"kind": alert.kind, "error": str(exc)},

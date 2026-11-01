@@ -26,8 +26,11 @@ export function renderKanban() {
     }
     card.dataset.st = st;
     const pct = o.qty ? Math.min(100, o.filled/o.qty*100) : 0;
-    card.innerHTML = `<div class="kc-top"><span>${o.sym}</span><span class="side-${o.side}">${o.side}</span></div>
-      <div class="kc-sub">${o.qty} · ${o.state} · ${o.cid.slice(-8)}</div>
+    /* the column already says the state — except in DEAD, where CANCELED and
+       REJECTED have to be told apart */
+    const tail = st === "DEAD" ? o.state : o.qty;
+    card.innerHTML = `<div class="kc-sym">${o.sym}</div>
+      <div class="kc-sub"><b class="side-${o.side}">${o.side}</b> · ${tail}</div>
       <div class="kc-bar"><i style="width:${pct}%"></i></div>`;
     const target = cols[st];
     if (card.parentElement !== target) { target.prepend(card); }
@@ -103,7 +106,7 @@ export function renderOps(ops) {
   $("#budget-txt").textContent = `$${ops.llmSpend.toFixed(2)} / $${ops.llmBudget} · 30d`;
   $("#ingest-tb").innerHTML = ops.ingest.map(s => {
     const cls = s.lag < 10 ? "ok" : s.lag < 90 ? "" : "bad";
-    const col = s.lag < 10 ? "var(--green)" : s.lag < 90 ? "var(--yellow)" : "var(--coral)";
+    const col = s.lag < 10 ? "var(--green)" : s.lag < 90 ? "var(--gold)" : "var(--red)";
     return `<tr><td>${s.src}</td><td class="lag" style="color:${col}">${s.lag.toFixed(1)}s</td></tr>`;
   }).join("");
   $("#op-uptime").textContent = ((Date.now()-S.t0)/36e5).toFixed(1) + "h";

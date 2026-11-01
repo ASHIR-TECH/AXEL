@@ -558,3 +558,62 @@ class CryptoVenueHealthModel(Base):
     recorded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
+
+
+# ── Operational observability ────────────────────────────────────────────────
+# These tables are written best-effort on external interactions and order
+# transitions. They exist so a separate exporter process can answer "is an API
+# token exhausted?" and "did a transaction fail?" without reading another
+# process's memory.
+
+
+class ApiProviderStateModel(Base, TimestampMixin):
+    """Latest known health for one external API provider.
+
+    One row per provider (``alpaca``, ``alpaca-data``, ``fred``, ``groq``,
+    ``telegram``, ...). Success clears ``consecutive_failures`` and the quota
+    flag; a quota/auth failure sets them so Prometheus can page immediately.
+    """
+
+    __tablename__ = "api_provider_state"
+
+    provider: Mapped[str] = mapped_column(String(64), primary_key=True)
+    last_operation: Mapped[str | None] = mapped_column(String(128))
+    last_outcome: Mapped[str | None] = mapped_column(String(32), index=True)
+    last_status_code: Mapped[int | None] = mapped_column(Integer)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_detail: Mapped[str | None] = mapped_column(Text)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    quota_exhausted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    quota_exhausted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retry_after_seconds: Mapped[float | None] = mapped_column(Float)
+    rate_limit_remaining: Mapped[int | None] = mapped_column(Integer)
+    prompt_tokens_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completion_tokens_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    estimated_cost_usd_total: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+
+class OperationalEventModel(Base):
+    """Append-only operational failure/transition log.
+
+    Successes stay in the JSON log (one line per call) to keep this table
+    small. Failures, quota exhaustion, rejected/ambiguous orders and failed
+    alert deliveries are persisted here so they survive the process and can be
+    aggregated by the exporter.
+    """
+
+    __tablename__ = "operational_events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    category: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    component: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    event: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), default="warning", nullable=False)
+    status_code: Mapped[int | None] = mapped_column(Integer)
+    detail: Mapped[str | None] = mapped_column(Text)
+    payload: Mapped[Any | None] = mapped_column(JSON)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True, nullable=False
+    )
