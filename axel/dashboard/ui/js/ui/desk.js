@@ -42,7 +42,7 @@ on("risk:done", ({ verdict }) => {
 export function renderSections() {
   const tb = $("#sec-table tbody");
   if (!tb.children.length) tb.innerHTML = Object.keys(SECTIONS).map(n =>
-    `<tr id="row-${n}"><td>${n}</td>
+    `<tr id="row-${n}" style="--sw:${SECCOLOR[n]}"><td>${n}</td>
      <td class="nav"></td><td class="dpnl"></td><td class="pos"></td><td class="expo"></td>
      <td><canvas class="spark" width="168" height="44"></canvas></td><td class="st"></td></tr>`).join("");
   for (const [name, st] of Object.entries(S.sections)) {
@@ -55,7 +55,7 @@ export function renderSections() {
     tr.querySelector(".expo").textContent = (st.nav / S.equity * 100).toFixed(1) + "%";
     const chip = tr.querySelector(".st"), state = S.halted ? "HALTED" : st.blocked ? "BLOCKED" : "TRADING";
     if (chip.dataset.s !== state) { chip.dataset.s = state; chip.innerHTML = `<span class="state-chip ${state}">${state}</span>`; }
-    drawSpark(tr.querySelector(".spark"), st.hist, dp >= 0 ? "#0acf83" : "#ff7262");
+    drawSpark(tr.querySelector(".spark"), st.hist, dp >= 0 ? "#3ddc97" : "#ff5e4b");
   }
 }
 function drawSpark(cv, data, color) {
@@ -76,21 +76,21 @@ export function drawEquity() {
   const ctx = cv.getContext("2d"); ctx.scale(dpr,dpr);
   const d = S.equityHist, min = Math.min(...d)*.997, max = S.hwm*1.005, sp = max-min;
   const Y = v => H-6 - (v-min)/sp*(H-14);
-  ctx.strokeStyle = "#1c242f"; ctx.lineWidth = 1;
+  ctx.strokeStyle = "#171b21"; ctx.lineWidth = 1;
   for (let i=0;i<5;i++){ const y=6+i*(H-14)/4; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
-  ctx.setLineDash([5,5]); ctx.strokeStyle = "rgba(255,200,87,.5)";
+  ctx.setLineDash([5,5]); ctx.strokeStyle = "rgba(236,191,58,.45)";
   ctx.beginPath(); ctx.moveTo(0,Y(S.hwm)); ctx.lineTo(W,Y(S.hwm)); ctx.stroke();
   const thr = S.hwm*.9;
-  ctx.strokeStyle = "rgba(255,114,98,.55)";
+  ctx.strokeStyle = "rgba(255,94,75,.5)";
   ctx.beginPath(); ctx.moveTo(0,Y(thr)); ctx.lineTo(W,Y(thr)); ctx.stroke(); ctx.setLineDash([]);
-  ctx.font = "9px JetBrains Mono"; ctx.fillStyle = "rgba(255,114,98,.8)"; ctx.fillText("−10% TRIP", 6, Y(thr)-4);
-  ctx.fillStyle = "rgba(255,200,87,.8)"; ctx.fillText("HWM", W-32, Y(S.hwm)-4);
+  ctx.font = "9px JetBrains Mono"; ctx.fillStyle = "rgba(255,94,75,.8)"; ctx.fillText("−10% TRIP", 6, Y(thr)-4);
+  ctx.fillStyle = "rgba(236,191,58,.85)"; ctx.fillText("HWM", W-32, Y(S.hwm)-4);
   ctx.beginPath();
   d.forEach((v,i)=>{ const x=i/(d.length-1)*W, y=Y(v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
-  ctx.strokeStyle = S.halted ? "#ff7262" : "#a259ff"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = S.halted ? "#ff5e4b" : "#ecbf3a"; ctx.lineWidth = 2; ctx.stroke();
   ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath();
   const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0, S.halted ? "rgba(255,114,98,.22)" : "rgba(162,89,255,.22)");
+  g.addColorStop(0, S.halted ? "rgba(255,94,75,.22)" : "rgba(236,191,58,.2)");
   g.addColorStop(1, "transparent");
   ctx.fillStyle = g; ctx.fill();
   $("#eq-last").textContent = "equity " + money(S.equity);
@@ -107,8 +107,8 @@ export function renderPortfolio(P) {
   const d = $("#pf-day"), dp = $("#pf-day-pct");
   d.textContent = (dayPct>=0?"+":"") + money(dayPct); d.className = dayPct>=0?"up":"down";
   dp.textContent = (dayPct>=0?"+":"") + (dayPct/100).toFixed(2) + "%";
-  dp.style.color = dayPct>=0 ? "var(--green)" : "var(--coral)";
-  dp.style.background = dayPct>=0 ? "rgba(10,207,131,.1)" : "rgba(255,114,98,.1)";
+  dp.style.color = dayPct>=0 ? "var(--green)" : "var(--red)";
+  dp.style.background = dayPct>=0 ? "rgba(61,220,151,.1)" : "rgba(255,94,75,.1)";
   $("#head-day").textContent = (dayPct>=0?"+":"") + (dayPct/P.equity*100).toFixed(2) + "%";
   $("#head-day").style.color = dayPct>=0 ? "var(--green)" : "var(--coral)";
   $("#pf-real").textContent = (P.realized>=0?"+":"") + money(P.realized);
