@@ -48,6 +48,56 @@ def population_std(values: Sequence[float]) -> float:
     return variance(values, ddof=0) ** 0.5
 
 
+def skewness(values: Sequence[float]) -> float:
+    """Adjusted Fisher-Pearson sample skewness (0.0 when undefined).
+
+    Symmetric returns give 0; a long right tail gives a positive value. The
+    small-sample correction is the one used by pandas/Excel, so a metric
+    reported here can be compared with a vendor tearsheet without rescaling.
+    """
+    count = len(values)
+    if count < 3:
+        return 0.0
+    average = mean(values)
+    deviation = sample_std(values)
+    if deviation == 0:
+        return 0.0
+    standardized = sum(((value - average) / deviation) ** 3 for value in values)
+    return count / ((count - 1) * (count - 2)) * standardized
+
+
+def excess_kurtosis(values: Sequence[float]) -> float:
+    """Unbiased Fisher excess kurtosis (normal distribution -> 0.0).
+
+    Fat-tailed return series report a positive value. Returning excess rather
+    than raw kurtosis keeps the "normal == 0" convention explicit at the call
+    site instead of relying on an implicit +3 offset.
+    """
+    count = len(values)
+    if count < 4:
+        return 0.0
+    average = mean(values)
+    deviation = sample_std(values)
+    if deviation == 0:
+        return 0.0
+    standardized = sum(((value - average) / deviation) ** 4 for value in values)
+    first = count * (count + 1) / ((count - 1) * (count - 2) * (count - 3)) * standardized
+    second = 3.0 * (count - 1) ** 2 / ((count - 2) * (count - 3))
+    return first - second
+
+
+def downside_deviation(values: Sequence[float], *, target: float = 0.0) -> float:
+    """Root-mean-square shortfall below ``target`` (per-period, not annualised).
+
+    Unlike standard deviation, upside surprises do not increase this measure,
+    which is why it is the denominator of the Sortino ratio.
+    """
+    if not values:
+        return 0.0
+    squared = [min(value - target, 0.0) ** 2 for value in values]
+    return (sum(squared) / len(squared)) ** 0.5
+
+
 def simple_returns(closes: Sequence[float]) -> list[float]:
     """Period-over-period simple returns (length = len(closes) - 1)."""
     return [
@@ -137,7 +187,9 @@ __all__ = [
     "DAYS_PER_YEAR",
     "correlation",
     "covariance",
+    "downside_deviation",
     "elapsed_years",
+    "excess_kurtosis",
     "implied_periods_per_year",
     "log_returns",
     "mean",
@@ -146,5 +198,6 @@ __all__ = [
     "quantile",
     "sample_std",
     "simple_returns",
+    "skewness",
     "variance",
 ]
