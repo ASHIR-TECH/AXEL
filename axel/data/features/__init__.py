@@ -17,6 +17,14 @@ from axel.data.features.cross_sectional import (
 )
 from axel.data.features.fundamentals import filing_change, filing_value
 from axel.data.features.macro import macro_change, macro_value
+from axel.data.features.microstructure import (
+    depth_imbalance,
+    depth_imbalance_within_bps,
+    microprice_deviation_bps,
+    quote_imbalance,
+    spread_bps,
+    trade_flow_imbalance,
+)
 from axel.data.features.momentum import average_true_momentum, momentum, rsi
 from axel.data.features.price import close_price, log_return, overnight_gap, simple_return
 from axel.data.features.sentiment import keyword_sentiment, news_count
@@ -47,6 +55,8 @@ __all__ = [
     "bollinger_percent_b",
     "close_price",
     "demean_by_time",
+    "depth_imbalance",
+    "depth_imbalance_within_bps",
     "dollar_volume",
     "donchian_position",
     "ema",
@@ -61,16 +71,20 @@ __all__ = [
     "macro_value",
     "make_feature",
     "max_available",
+    "microprice_deviation_bps",
     "momentum",
     "news_count",
     "on_balance_volume",
     "overnight_gap",
     "parkinson_volatility",
+    "quote_imbalance",
     "rank_by_time",
     "realized_volatility",
     "rsi",
     "simple_return",
+    "spread_bps",
     "stochastic_oscillator",
+    "trade_flow_imbalance",
     "volume",
     "volume_ratio",
     "volume_zscore",
