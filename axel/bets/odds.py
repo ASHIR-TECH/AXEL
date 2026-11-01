@@ -10,6 +10,7 @@ a single "correct" probability.
 
 from __future__ import annotations
 
+from fractions import Fraction
 from typing import Any
 
 
@@ -120,6 +121,56 @@ def fractional_to_decimal(numerator: float, denominator: float) -> float:
     if denominator <= 0:
         raise ValueError(f"denominator must be positive, got {denominator}")
     return 1.0 + numerator / denominator
+
+
+def decimal_to_american(decimal_odds: float) -> float:
+    """Convert decimal odds to American odds (+100 / -100 convention)."""
+    if decimal_odds <= 1.0:
+        raise ValueError(f"decimal_odds must be > 1.0, got {decimal_odds}")
+    net = decimal_odds - 1.0
+    if net >= 1.0:
+        return net * 100.0
+    return -100.0 / net
+
+
+def decimal_to_fractional(
+    decimal_odds: float,
+    *,
+    max_denominator: int = 100,
+) -> tuple[int, int]:
+    """Convert decimal odds to the nearest fractional odds (numerator, denominator)."""
+    if decimal_odds <= 1.0:
+        raise ValueError(f"decimal_odds must be > 1.0, got {decimal_odds}")
+    if max_denominator <= 0:
+        raise ValueError(f"max_denominator must be positive, got {max_denominator}")
+    fraction = Fraction(decimal_odds - 1.0).limit_denominator(max_denominator)
+    return fraction.numerator, fraction.denominator
+
+
+def implied_probability_from_odds(odds: dict[str, Any]) -> float | None:
+    """Raw implied probability from a provider odds dict, or None if unparseable."""
+    decimal_odds = normalize_odds_dict(odds)
+    if decimal_odds is None or decimal_odds <= 0:
+        return None
+    return implied_probability(decimal_odds)
+
+
+def closing_line_value(taken_decimal: float, closing_decimal: float) -> float:
+    """Closing Line Value: relative price edge of the taken odds versus the close.
+
+    ``(taken / closing) - 1``. Positive means the bet was struck at a better
+    price than the closing line, which is the standard CLV proxy for edge.
+    """
+    if taken_decimal <= 1.0:
+        raise ValueError(f"taken_decimal must be > 1.0, got {taken_decimal}")
+    if closing_decimal <= 1.0:
+        raise ValueError(f"closing_decimal must be > 1.0, got {closing_decimal}")
+    return taken_decimal / closing_decimal - 1.0
+
+
+def closing_line_value_bps(taken_decimal: float, closing_decimal: float) -> float:
+    """Closing Line Value in basis points."""
+    return closing_line_value(taken_decimal, closing_decimal) * 10_000.0
 
 
 def normalize_odds_dict(
