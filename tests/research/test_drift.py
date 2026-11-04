@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-
 from axel.research.drift import (
     DriftMonitor,
-    DriftReport,
-    FeatureDriftResult,
     feature_drift_report,
     population_stability_index,
     psi_alert_level,
 )
-
 
 # --- PSI computation ---
 
@@ -65,7 +60,7 @@ class TestPSI:
         extreme = [50.0] * 100
         psi = population_stability_index(ref, extreme)
         assert psi >= 0.0
-        assert not float("inf") == psi
+        assert float("inf") != psi
 
 
 # --- PSI alert levels ---

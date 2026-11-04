@@ -4,12 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from axel.data.ml.dividend_model import (
-    BaselineDividendModel,
-    DividendFeatures,
-    DividendModel,
-    DividendPrediction,
-)
 from axel.data.ml.delisting_model import (
     BaselineDelistingModel,
     DelistingFeatures,
@@ -17,7 +11,12 @@ from axel.data.ml.delisting_model import (
     DelistingPrediction,
     StressResult,
 )
-
+from axel.data.ml.dividend_model import (
+    BaselineDividendModel,
+    DividendFeatures,
+    DividendModel,
+    DividendPrediction,
+)
 
 # --- DividendModel ---
 

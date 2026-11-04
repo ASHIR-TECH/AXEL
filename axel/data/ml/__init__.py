@@ -73,8 +73,6 @@ from axel.data.ml.slippage import (
 from axel.data.ml.splits import Split, apply_splits
 
 __all__ = [
-    "BaselineDelistingModel",
-    "BaselineDividendModel",
     "DEFAULT_CALENDAR",
     "NO_SLIPPAGE",
     "TRADING_DAYS_PER_YEAR",
@@ -82,6 +80,8 @@ __all__ = [
     "ZERO_COSTS",
     "BacktestResult",
     "Backtester",
+    "BaselineDelistingModel",
+    "BaselineDividendModel",
     "CostModel",
     "Delisting",
     "DelistingFeatures",

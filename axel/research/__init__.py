@@ -70,49 +70,37 @@ from axel.research.validation import (
 __all__ = [
     "RESTRICTED_PATH_PREFIXES",
     "VALID_STATUS_TRANSITIONS",
-    # Baseline
     "BaselineResult",
-    # PR & Governance
     "CodeChangeProposal",
-    # Dataset
     "DatasetLineage",
     "DatasetRegistry",
     "DatasetVersion",
-    # Drift (Phase 14 §10.3)
+    "DeploymentState",
     "DriftMonitor",
     "DriftReport",
-    "FeatureDriftResult",
-    # Experiment
     "ExperimentConfig",
     "ExperimentRun",
     "ExperimentRunner",
     "ExperimentStatus",
-    # Feature
     "FeatureDefinition",
+    "FeatureDriftResult",
     "FeatureRegistry",
     "FeatureVersion",
     "GovernanceGate",
-    # Hypothesis
     "Hypothesis",
     "HypothesisRegistry",
     "HypothesisStatus",
     "HypothesisVersion",
-    # Model Registry (Phase 14 §10.1)
-    "DeploymentState",
     "ModelRecord",
     "ModelRegistry",
     "PerformanceSnapshot",
     "PointInTimeChecker",
     "PromotionState",
     "ProposalStatus",
-    # Orchestrator
     "QuantResearchAgent",
-    # Report
     "Recommendation",
     "ResearchReport",
-    # Validation
     "ValidationProtocol",
-    # Statistics
     "brier_score",
     "build_research_report",
     "calibration_metrics",

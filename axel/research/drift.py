@@ -15,8 +15,6 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
-
 
 # --- PSI thresholds (industry convention) ---
 PSI_STABLE = 0.10
