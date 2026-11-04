@@ -5,25 +5,25 @@
 <title>AXEL · TERMINAL — Autonomous Multi-Agent Trading &amp; Betting</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/pipeline.css">
 <link rel="stylesheet" href="css/panels.css">
+<link rel="icon" href="assets/axel-mark.png">
 </head>
 <body>
 
 <!-- ══════════ HEADER ══════════ -->
 <header id="topbar">
   <div class="brand">
-    <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
-    <span class="brand-name">AXEL</span>
-    <span class="brand-sub">Multi-Section Agent Terminal</span>
+    <img class="brand-mark" src="assets/axel-mark.png" alt="AXEL">
+    <span class="brand-lockup"><span class="brand-name">TERMINAL</span><span class="brand-sub">AUTONOMOUS AGENT</span></span>
   </div>
 
   <nav id="tabs">
-    <button class="tab active" data-page="p1"><kbd>1</kbd> DESK <span>pipeline · portfolio · risk</span></button>
-    <button class="tab" data-page="p2"><kbd>2</kbd> TRADE DESK <span>orders · signals · logs</span></button>
+    <button class="tab active" data-page="p1"><kbd>1</kbd> DESK <span>01–04</span></button>
+    <button class="tab" data-page="p2"><kbd>2</kbd> TRADE DESK <span>05–10</span></button>
   </nav>
 
   <div class="head-right">
@@ -34,7 +34,7 @@
       <span class="lamp"><i class="dot ok" id="lamp-ci"></i>lint</span>
     </div>
     <div class="mode-chip" id="mode-chip"><span>MODE</span><b>PAPER</b></div>
-    <div class="aum-chip"><span>AUM</span><b id="head-aum">$10,000</b><em id="head-day">+0.00%</em></div>
+    <div class="aum-chip"><b id="head-aum">$10,000</b><em id="head-day">+0.00%</em></div>
     <div class="clock" id="clock">--:--:--<small id="clock-date"></small></div>
   </div>
 </header>
@@ -57,7 +57,7 @@
 <main class="page active" id="p1">
 
   <!-- [01] PIPELINE — n8n style -->
-  <section class="panel c1 span6 r1" id="pnl-pipeline">
+  <section class="panel c1 span9 r1" id="pnl-pipeline">
     <div class="p-head">
       <span class="p-num">01</span> Agent Pipeline
       <span class="p-tag" id="pipeline-qn">running</span>
@@ -69,14 +69,14 @@
         <div class="zone zone-core"><b>TRADING CORE</b><span>deterministic · CI-banned LLM imports</span></div>
       </div>
       <svg class="wires" id="wires"></svg>
-      <div class="boundary-line" id="boundary-line"><span>DETERMINISTIC BOUNDARY</span></div>
+      <div class="boundary-line" id="boundary-line"><span>BOUNDARY</span></div>
       <div id="nodes"></div>
       <div id="pkt-layer"></div>
     </div>
   </section>
 
   <!-- [02] PORTFOLIO -->
-  <section class="panel c7 span2 r1" id="pnl-portfolio">
+  <section class="panel c10 span3 r1" id="pnl-portfolio">
     <div class="p-head"><span class="p-num">02</span> Portfolio <span class="p-tag green">live</span></div>
     <div class="p-body pf-body">
       <div class="pf-hero">
@@ -116,7 +116,7 @@
   </section>
 
   <!-- [04] SECTIONS -->
-  <section class="panel c4 span5 r2" id="pnl-sections">
+  <section class="panel c4 span9 r2" id="pnl-sections">
     <div class="p-head"><span class="p-num">04</span> Sections <span class="p-note">paper · $10,000 start · 45/25/15/10/5</span></div>
     <div class="p-body">
       <table class="sec-table" id="sec-table">
@@ -141,7 +141,7 @@
 
   <!-- [06] ORDER LIFECYCLE -->
   <section class="panel c5 span4 r1" id="pnl-orders">
-    <div class="p-head"><span class="p-num">06</span> Order Lifecycle <span class="p-tag">FSM</span><span class="p-note">submit guarded: only APPROVED decisions can open an order</span></div>
+    <div class="p-head"><span class="p-num">06</span> Order Lifecycle <span class="p-tag">FSM</span><span class="p-note">only APPROVED orders submit</span></div>
     <div class="p-body kanban-body">
       <div class="kanban" id="kanban">
         <div class="kcol" data-st="NEW"><header>NEW <i>0</i></header><div class="kcards"></div></div>
@@ -160,7 +160,7 @@
       <div class="kf-title">OUTBOUND ALERTS</div>
       <ul id="alert-list" class="alert-list"></ul>
       <div class="kf-title">HITL APPROVAL TICKETS <small class="dim">(live mode · per-section TTL)</small></div>
-      <table class="tbl"><thead><tr><th>TICKET</th><th>SEC</th><th>TTL</th><th>STATE</th></tr></thead><tbody id="appr-tb"></tbody></table>
+      <div class="appr-wrap"><table class="tbl"><thead><tr><th>TICKET</th><th>SEC</th><th>TTL</th><th>STATE</th></tr></thead><tbody id="appr-tb"></tbody></table></div>
     </div>
   </section>
 
@@ -195,7 +195,7 @@
       <div class="kf-title">LLM BUDGET GUARD</div>
       <div class="budget"><div class="budget-fill" id="budget-fill"></div><span id="budget-txt">$0 / $50</span></div>
       <div class="kf-title">DATA INGEST FRESHNESS</div>
-      <table class="tbl"><tbody id="ingest-tb"></tbody></table>
+      <div class="ingest-wrap"><table class="tbl"><tbody id="ingest-tb"></tbody></table></div>
       <div class="ops-mini">
         <div><span>KILL DRILL</span><b id="op-drill" class="ok">PASSED · 3d ago</b></div>
         <div><span>RECOVERY DRILL</span><b id="op-recover" class="ok">PASSED · 9d ago</b></div>

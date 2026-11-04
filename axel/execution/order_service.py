@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from axel.core.clock import Clock, RealClock
 from axel.core.contracts import Order, RiskDecision
 from axel.core.ids import derive_client_order_id
-from axel.core.logging import logger
+from axel.core.logging import log_event
 from axel.core.money import to_decimal
 from axel.core.types import OrderState
 from axel.execution.approval import AuthenticatedPrincipal, OrderApprovalService, compute_order_hash
@@ -42,6 +42,7 @@ from axel.execution.order_store import (
 )
 from axel.execution.permissions import assert_may_cancel, assert_may_submit
 from axel.execution.reason_codes import OrderReason
+from axel.observability.api_health import OperationalCategory, record_operational_event
 
 # States that mean "we asked the broker and do not yet know the outcome".
 _IN_FLIGHT_STATES = frozenset({OrderState.SUBMITTED, OrderState.UNKNOWN, OrderState.CANCEL_PENDING})
@@ -110,6 +111,18 @@ class OrderService:
         )
         record = self.store.record(client_order_id)
         assert record is not None  # just appended
+        log_event(
+            "info",
+            "order_created",
+            f"Order {client_order_id} created",
+            client_order_id=client_order_id,
+            symbol=order.symbol,
+            side=order.side.value,
+            qty=str(to_decimal(order.qty)),
+            order_hash=order_hash,
+            config_version=config_version,
+            correlation_id=correlation_id or order.correlation_id,
+        )
         return record
 
     # ── Submission ──────────────────────────────────────────────────────────
@@ -138,6 +151,13 @@ class OrderService:
                 )
             if existing.state in _IN_FLIGHT_STATES:
                 # Crash/retry recovery: never resubmit; resolve against the broker.
+                log_event(
+                    "warning",
+                    "order_duplicate_in_flight",
+                    f"Order {client_order_id} already in flight; resolving instead of resubmitting",
+                    client_order_id=client_order_id,
+                    state=existing.state.value,
+                )
                 resolved = self.resolve_unknown(client_order_id)
                 record = resolved or existing
                 return SubmitOutcome(
@@ -147,6 +167,13 @@ class OrderService:
                     ambiguous=record.state is OrderState.UNKNOWN,
                     reason_code=OrderReason.DUPLICATE_SUBMISSION.value,
                 )
+            log_event(
+                "info",
+                "order_duplicate",
+                f"Order {client_order_id} already submitted; no duplicate sent",
+                client_order_id=client_order_id,
+                state=existing.state.value,
+            )
             return SubmitOutcome(record=existing, submitted=False, duplicate=True, ambiguous=False)
 
         # Single-use approval is mandatory unless the caller explicitly opts out
@@ -166,12 +193,29 @@ class OrderService:
             kind=OrderEventKind.APPROVED,
             state=OrderState.APPROVED,
         )
+        log_event(
+            "info",
+            "order_approved",
+            f"Order {client_order_id} approved for submission",
+            client_order_id=client_order_id,
+            approval_id=order.approval_id,
+            symbol=order.symbol,
+        )
         # Outbox: persist SUBMITTED *before* the network call so a crash leaves a
         # recoverable marker rather than a lost order.
         self.store.append(
             client_order_id=client_order_id,
             kind=OrderEventKind.SUBMITTED,
             state=OrderState.SUBMITTED,
+        )
+        log_event(
+            "info",
+            "order_submitted",
+            f"Order {client_order_id} submitted to broker",
+            client_order_id=client_order_id,
+            symbol=order.symbol,
+            side=order.side.value,
+            qty=str(to_decimal(order.qty)),
         )
 
         try:
@@ -184,9 +228,20 @@ class OrderService:
                 reason_code=OrderReason.SUBMISSION_TIMEOUT_AMBIGUOUS.value,
                 message=str(exc),
             )
-            logger.warning(
-                "Order submission ambiguous; marked UNKNOWN for recovery.",
-                extra={"client_order_id": client_order_id},
+            record_operational_event(
+                OperationalCategory.ORDER,
+                "order_service",
+                "order_submission_ambiguous",
+                outcome="ambiguous",
+                severity="critical",
+                detail=str(exc),
+                payload={
+                    "client_order_id": client_order_id,
+                    "symbol": order.symbol,
+                    "side": order.side.value,
+                    "qty": str(to_decimal(order.qty)),
+                    "reason_code": OrderReason.SUBMISSION_TIMEOUT_AMBIGUOUS.value,
+                },
             )
             return SubmitOutcome(
                 record=self._require(client_order_id),
@@ -203,6 +258,21 @@ class OrderService:
                 reason_code=OrderReason.BROKER_REJECTED.value,
                 message=str(exc),
             )
+            record_operational_event(
+                OperationalCategory.ORDER,
+                "order_service",
+                "order_rejected",
+                outcome="rejected",
+                severity="critical",
+                detail=str(exc),
+                payload={
+                    "client_order_id": client_order_id,
+                    "symbol": order.symbol,
+                    "side": order.side.value,
+                    "qty": str(to_decimal(order.qty)),
+                    "reason_code": OrderReason.BROKER_REJECTED.value,
+                },
+            )
             return SubmitOutcome(
                 record=self._require(client_order_id),
                 submitted=True,
@@ -218,6 +288,21 @@ class OrderService:
                 reason_code=OrderReason.BROKER_TRANSPORT_ERROR.value,
                 message=str(exc),
             )
+            record_operational_event(
+                OperationalCategory.ORDER,
+                "order_service",
+                "order_submit_failed",
+                outcome="transport_error",
+                severity="critical",
+                detail=str(exc),
+                payload={
+                    "client_order_id": client_order_id,
+                    "symbol": order.symbol,
+                    "side": order.side.value,
+                    "qty": str(to_decimal(order.qty)),
+                    "reason_code": OrderReason.BROKER_TRANSPORT_ERROR.value,
+                },
+            )
             return SubmitOutcome(
                 record=self._require(client_order_id),
                 submitted=True,
@@ -231,6 +316,14 @@ class OrderService:
             kind=OrderEventKind.BROKER_ACK,
             state=ack.state,
             broker_order_id=ack.broker_order_id,
+        )
+        log_event(
+            "info",
+            "order_acknowledged",
+            f"Broker acknowledged order {client_order_id}",
+            client_order_id=client_order_id,
+            broker_order_id=ack.broker_order_id,
+            state=ack.state.value,
         )
         if ack.filled_qty and ack.filled_avg_price is not None:
             self.apply_fill(
@@ -260,6 +353,13 @@ class OrderService:
             return None
         broker_order = self.broker.find_order_by_client_id(client_order_id)
         if broker_order is None:
+            log_event(
+                "warning",
+                "order_unresolved",
+                f"Order {client_order_id} is still unknown at the broker",
+                client_order_id=client_order_id,
+                state=record.state.value,
+            )
             return record  # still unresolved; reconciliation will raise an incident
         return self.apply_broker_order(broker_order, reconciled=True)
 
@@ -287,6 +387,15 @@ class OrderService:
             broker_order_id=broker_order.broker_order_id,
             reason_code=(OrderReason.RECONCILIATION_REPAIRED.value if reconciled else None),
         )
+        log_event(
+            "info",
+            "order_reconciled" if reconciled else "order_state_synced",
+            f"Order {client_order_id} synced to broker state {broker_order.state.value}",
+            client_order_id=client_order_id,
+            broker_order_id=broker_order.broker_order_id,
+            state=broker_order.state.value,
+            reconciled=reconciled,
+        )
         # Backfill any execution the projection had not yet seen.
         if broker_order.filled_qty > prior_filled and broker_order.filled_avg_price is not None:
             self.apply_fill(
@@ -306,7 +415,25 @@ class OrderService:
         """Ingest a fill (idempotent); returns ``None`` when it is a duplicate."""
         event = self.store.append_fill(fill)
         if event is None:
+            log_event(
+                "debug",
+                "order_fill_duplicate",
+                f"Duplicate fill ignored for {fill.client_order_id or fill.broker_order_id}",
+                broker_order_id=fill.broker_order_id,
+                client_order_id=fill.client_order_id,
+            )
             return None
+        log_event(
+            "info",
+            "order_filled",
+            f"Fill applied to order {event.client_order_id}",
+            client_order_id=event.client_order_id,
+            broker_order_id=fill.broker_order_id,
+            symbol=fill.symbol,
+            side=fill.side.value,
+            qty=str(fill.qty),
+            price=str(fill.price),
+        )
         return self.store.record(event.client_order_id)
 
     # ── Cancellation ────────────────────────────────────────────────────────
@@ -323,6 +450,12 @@ class OrderService:
             kind=OrderEventKind.CANCEL_REQUESTED,
             state=OrderState.CANCEL_PENDING,
         )
+        log_event(
+            "info",
+            "order_cancel_requested",
+            f"Cancellation requested for {client_order_id}",
+            client_order_id=client_order_id,
+        )
         result = self.broker.cancel(client_order_id)
         if result.accepted and result.state is OrderState.CANCELED:
             self.store.append(
@@ -330,7 +463,23 @@ class OrderService:
                 kind=OrderEventKind.STATE_CHANGE,
                 state=OrderState.CANCELED,
             )
+            log_event(
+                "info",
+                "order_canceled",
+                f"Order {client_order_id} canceled",
+                client_order_id=client_order_id,
+                broker_order_id=result.broker_order_id,
+            )
         elif not result.accepted:
+            record_operational_event(
+                OperationalCategory.ORDER,
+                "order_service",
+                "order_cancel_failed",
+                outcome="cancel_failed",
+                severity="warning",
+                detail=result.detail or "broker did not accept cancellation",
+                payload={"client_order_id": client_order_id},
+            )
             # The broker may already have filled/cancelled it; reconcile.
             broker_order = self.broker.find_order_by_client_id(client_order_id)
             if broker_order is not None:

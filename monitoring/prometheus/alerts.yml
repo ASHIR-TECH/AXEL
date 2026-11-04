@@ -1,0 +1,236 @@
+groups:
+  - name: axel-safety
+    interval: 15s
+    rules:
+      - alert: AxelExporterDown
+        expr: up{job="axel"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "AXEL metrics exporter is unreachable"
+          description: "Prometheus has failed to scrape the AXEL exporter for 2 minutes. Trading state is unobserved."
+
+      - alert: AxelScrapeFailed
+        expr: axel_exporter_last_scrape_success == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "AXEL metrics scrape is failing"
+          description: "The exporter is up but cannot read durable AXEL state (database or state files)."
+
+      - alert: AxelKillSwitchActive
+        expr: axel_kill_switch_active == 1
+        for: 0m
+        labels:
+          severity: critical
+          component: risk
+        annotations:
+          summary: "AXEL global kill switch is tripped"
+          description: "All automated execution must remain halted until an operator re-arms the kill switch with a written rationale."
+
+      - alert: AxelHaltActive
+        expr: axel_halt_active == 1
+        for: 0m
+        labels:
+          severity: critical
+          component: risk
+        annotations:
+          summary: "AXEL halt controller is active"
+          description: "A scoped halt is in force. Check axel_halt_scope and the halt trigger reason before doing anything else."
+
+      - alert: AxelDrawdownWarning
+        expr: axel_drawdown_pct >= 0.08
+        for: 5m
+        labels:
+          severity: warning
+          component: risk
+        annotations:
+          summary: "AXEL drawdown above 8%"
+          description: "Peak-to-trough drawdown is approaching the 10% global kill-switch threshold."
+
+      - alert: AxelDrawdownCritical
+        expr: axel_drawdown_pct >= 0.10
+        for: 0m
+        labels:
+          severity: critical
+          component: risk
+        annotations:
+          summary: "AXEL drawdown at/above 10%"
+          description: "The hard drawdown limit has been reached. Verify the kill switch and flatten/hold policy immediately."
+
+      - alert: AxelCriticalIncidentOpen
+        expr: axel_critical_incidents_total > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: execution
+        annotations:
+          summary: "AXEL has an open critical incident"
+          description: "An unresolved critical incident is blocking new risk. Inspect the incident record and reconcile."
+
+      - alert: AxelIncidentOpen
+        expr: axel_open_incidents_total > 0
+        for: 15m
+        labels:
+          severity: warning
+          component: execution
+        annotations:
+          summary: "AXEL has unresolved incidents"
+          description: "One or more incidents have remained open for 15 minutes."
+
+      - alert: AxelReconciliationMismatch
+        expr: axel_reconciliation_mismatches_total > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: execution
+        annotations:
+          summary: "AXEL reconciliation mismatch detected"
+          description: "Broker and database state disagree. Do not submit new risk; reconcile and record an incident."
+
+      - alert: AxelUnreconciledOrders
+        expr: axel_unreconciled_orders_total > 0
+        for: 10m
+        labels:
+          severity: warning
+          component: execution
+        annotations:
+          summary: "AXEL has orders awaiting reconciliation"
+          description: "Working orders have not reached a terminal/reconciled state for 10 minutes."
+
+      - alert: AxelReconciliationStale
+        expr: time() - axel_last_reconciliation_age_seconds > 900
+        for: 5m
+        labels:
+          severity: warning
+          component: execution
+        annotations:
+          summary: "AXEL reconciliation is stale"
+          description: "No reconciliation run has completed in over 15 minutes."
+
+      - alert: AxelPendingApproval
+        expr: axel_pending_hitl_tickets > 0
+        for: 15m
+        labels:
+          severity: warning
+          component: execution
+        annotations:
+          summary: "AXEL has approvals waiting"
+          description: "A human-in-the-loop approval has been pending for 15 minutes."
+
+      - alert: AxelEquityUnavailable
+        expr: axel_equity_usd <= 0
+        for: 5m
+        labels:
+          severity: warning
+          component: broker
+        annotations:
+          summary: "AXEL equity is zero or unavailable"
+          description: "The broker account summary is missing, stale, or the account is empty."
+
+      - alert: AxelLiveTradingEnabled
+        expr: axel_live_enabled == 1
+        for: 1m
+        labels:
+          severity: warning
+          component: risk
+        annotations:
+          summary: "AXEL live trading is enabled"
+          description: "Verify that live activation is intentional, approved, and backed by a current LiveConfig."
+
+      # ── External API / token health ─────────────────────────────────────
+      - alert: AxelApiQuotaExhausted
+        expr: axel_api_quota_exhausted > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "AXEL API quota exhausted: {{ $labels.provider }}"
+          description: "Provider {{ $labels.provider }} reported exhausted quota/credit. Rotate or top up the credential before the next scheduled task."
+
+      - alert: AxelApiAuthFailure
+        expr: increase(axel_api_failures_total{outcome="auth_failed"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "AXEL API authentication failing: {{ $labels.provider }}"
+          description: "Provider {{ $labels.provider }} rejected the credential (401/403). The key may be revoked, expired or scoped to the wrong project."
+
+      - alert: AxelApiRateLimited
+        expr: increase(axel_api_failures_total{outcome="rate_limited"}[10m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "AXEL API rate limiting: {{ $labels.provider }}"
+          description: "Provider {{ $labels.provider }} is rate limiting repeated calls. Back off or reduce polling frequency."
+
+      - alert: AxelApiProviderStale
+        expr: axel_api_last_success_age_seconds > 3600
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "AXEL API has not succeeded in over an hour: {{ $labels.provider }}"
+          description: "No successful call to {{ $labels.provider }} for more than 60 minutes. Check credentials, connectivity and provider status."
+
+      - alert: AxelApiProviderUnhealthy
+        expr: axel_api_consecutive_failures >= 3
+        for: 2m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "AXEL API failing repeatedly: {{ $labels.provider }}"
+          description: "{{ $labels.provider }} has failed 3 or more consecutive calls. Inspect the latest api_* log events for the status code and body."
+
+      - alert: AxelLlmBudgetExceeded
+        expr: increase(axel_operational_failures_total{category="llm",event="llm_budget_exceeded"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: agent
+        annotations:
+          summary: "AXEL LLM budget exhausted"
+          description: "The local hourly/daily LLM spend guard refused a completion. Agent work is paused until the budget window resets or the cap is raised."
+
+      # ── Transaction / order failures ────────────────────────────────────
+      - alert: AxelOrderRejected
+        expr: increase(axel_order_failures_total{reason="order_rejected"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: execution
+        annotations:
+          summary: "AXEL broker rejected an order"
+          description: "A transaction did not go through: the broker returned a 4xx rejection. Check the order_rejected log event for the client_order_id and broker body."
+
+      - alert: AxelOrderSubmissionFailed
+        expr: increase(axel_order_failures_total{reason=~"order_submit_failed|order_submission_ambiguous|order_cancel_failed"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          component: execution
+        annotations:
+          summary: "AXEL order submission/cancel did not complete"
+          description: "A transport error, ambiguous timeout or failed cancellation occurred. Ambiguous orders must be reconciled before any retry."
+
+      - alert: AxelOperationalEventBurst
+        expr: sum(increase(axel_operational_failures_total[10m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: operations
+        annotations:
+          summary: "AXEL operational failure burst"
+          description: "More than 10 persisted operational failures in 10 minutes across API, order, LLM and notification paths. Check the JSON log for the dominant event."
+

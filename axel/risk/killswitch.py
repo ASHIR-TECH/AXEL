@@ -28,7 +28,7 @@ class KillSwitch:
     ):
         self.limits = limits
         self.clock = clock or RealClock()
-        self.state_file = state_file_path or Path(".axel_killswitch.json")
+        self.state_file = state_file_path or Path(settings.killswitch_state_file)
         self._halted: bool = False
         self._halt_reason: str | None = None
         self._halted_at: str | None = None

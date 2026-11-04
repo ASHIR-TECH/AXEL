@@ -1,0 +1,20 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: axel-relay
+  group_by: ["alertname", "severity", "component"]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+
+receivers:
+  - name: axel-relay
+    webhook_configs:
+      - url: http://axel-alert-relay:9110/alert
+        send_resolved: true
+
+inhibit_rules:
+  - source_matchers: ['severity="critical"']
+    target_matchers: ['severity="warning"']
+    equal: ["alertname"]

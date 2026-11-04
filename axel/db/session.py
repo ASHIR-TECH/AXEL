@@ -30,7 +30,16 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db(bind_engine=None) -> None:
-    """Create all tables in the database (useful for SQLite/dev/tests)."""
+    """Create all tables in the database (useful for SQLite/dev/tests).
+
+    Import model modules explicitly so ``create_all`` sees every registered
+    table even when the application has not imported them yet. Phase 11 models
+    live in their own module to keep the portfolio package self-contained.
+    """
+    from importlib import import_module
+
+    for module_name in ("axel.db.models", "axel.portfolio.db_models"):
+        import_module(module_name)
     target_engine = bind_engine or engine
     Base.metadata.create_all(bind=target_engine)
 

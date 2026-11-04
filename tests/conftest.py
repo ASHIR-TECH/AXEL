@@ -10,6 +10,18 @@ from sqlalchemy.orm import sessionmaker
 
 from axel.core.clock import SimulatedClock
 from axel.db.base import Base
+from axel.observability.api_health import configure_event_sink, reset_event_sink
+
+
+@pytest.fixture(autouse=True)
+def _disable_operational_event_sink():
+    """Keep unit tests from writing operational events to the real axel.db.
+
+    Tests that assert persistence pass an explicit session to the recorder.
+    """
+    configure_event_sink(None)
+    yield
+    reset_event_sink()
 
 
 @pytest.fixture

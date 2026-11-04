@@ -1,57 +1,94 @@
 /* ═══════════════════════════════════════════════════════════════
    AXEL TERMINAL · base.css
    design tokens + reset + typography
-   Figma brand accents on soft graphite (#F24E1E · #FF7262 · #A259FF
-   · #1ABCFE · #0ACF83 · #FFC857) · Figtree UI · JetBrains Mono data
+   Brand taken from the official wordmark: gold #ecbf3a on black.
+   Color is reserved for STATE only (green=pass, red=veto); every
+   other hue is a step of gold or a neutral, so hierarchy reads
+   at a glance instead of competing.
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  --bg:       #0d1014;
-  --bg-deep:  #0a0c10;
-  --panel:    #151a21;
-  --panel-2:  #1a212b;
-  --card:     #202a37;
-  --line:     #262f3c;
-  --line-soft:#1e2632;
-  --txt:      #e8ebf0;
-  --muted:    #8f9bab;
-  --faint:    #5c6878;
+  /* field — true black, like a CRT at rest */
+  --bg:       #050607;
+  --bg-deep:  #000000;
+  --panel:    #0b0d10;
+  --panel-2:  #13171c;
+  --card:     #191e25;
+  --line:     #343b44;   /* hard rule: this is what gives definition */
+  --line-soft:#232830;
 
-  --orange: #f24e1e;
-  --coral:  #ff7262;
-  --purple: #a259ff;
-  --blue:   #1abcfe;
-  --green:  #0acf83;
-  --yellow: #ffc857;
+  --txt:      #e7ebf0;
+  --muted:    #a6adb6;
+  --faint:    #7d848d;   /* micro-text floor: still 5.9:1 on the panel field */
 
+  /* brand gold — official wordmark #ecbf3a, plus lighter/darker steps */
+  --gold:     #ecbf3a;
+  --gold-hi:  #ffd75e;
+  --gold-dim: #9b7f2a;
+  --gold-ink: #0d0b04;   /* text printed ON gold */
+  --amber:    #f0a83c;   /* warm secondary accent (fills, progress) */
+
+  /* state */
+  --green: #3ddc97;
+  --red:   #ff5e4b;
+  --slate: #8b9199;
   --up:   var(--green);
-  --down: var(--coral);
+  --down: var(--red);
+  /* legacy aliases — kept so nothing silently falls back to a rainbow */
+  --coral:  var(--red);
+  --orange: var(--amber);
+  --yellow: var(--gold);
+  --purple: var(--gold);
+  --blue:   var(--gold-hi);
 
-  --ui:   "Figtree", sans-serif;
+  --ui:   "IBM Plex Sans", "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
-  --r-lg: 14px; --r-md: 10px; --r-sm: 7px;
-  --shadow: 0 8px 24px rgba(0,0,0,.35);
+  /* terminals are squared, not rounded */
+  --r-lg: 3px; --r-md: 2px; --r-sm: 2px;
+  --shadow: 0 10px 26px rgba(0,0,0,.6);
+  --rule: 1px solid var(--line);
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { height: 100%; overflow: hidden; }
 
 body {
-  background:
-    radial-gradient(1100px 500px at 8% -5%, rgba(162,89,255,.07), transparent 60%),
-    radial-gradient(1100px 500px at 95% 110%, rgba(26,188,254,.06), transparent 60%),
-    var(--bg);
+  background: var(--bg);
   color: var(--txt);
   font-family: var(--ui);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.45;
   display: flex; flex-direction: column;
   min-width: 1280px;
 }
+
+/* phosphor texture + top glow: atmosphere without hurting legibility */
+body::before {
+  content:""; position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+  background:
+    radial-gradient(1200px 420px at 50% -10%, rgba(236,191,58,.055), transparent 70%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.016) 0 1px, transparent 1px 3px);
+}
+
+/* every number in this app is a column — align them */
+.mono, table, .kf-title + * b, .nd .cnt { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--mono); }
 .dim { color: var(--muted); }
 .up  { color: var(--up); } .down { color: var(--down); }
-.ok  { color: var(--green); } .bad { color: var(--coral); }
+.ok  { color: var(--green); } .bad { color: var(--red); }
+.gold { color: var(--gold); }
 b, strong { font-weight: 600; }
+::selection { background: var(--gold); color: var(--gold-ink); }
 
 @keyframes pulse { 50% { opacity: .35; } }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: #343b44; border: 2px solid var(--bg-deep); }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+* { scrollbar-width: thin; scrollbar-color: #343b44 transparent; }
+/* these regions are re-rendered from the event bus every tick: without this
+   Chrome's scroll anchoring drags them to an arbitrary offset under the user */
+.pf-cap, .pf-hold, .rg-checks, .kcards, .appr-wrap, .ingest-wrap, #log-tape,
+#pnl-sections .p-body { overflow-anchor: none; }

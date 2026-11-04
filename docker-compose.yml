@@ -43,6 +43,14 @@ services:
       ENVIRONMENT: paper
       ALPACA_PAPER: "true"
       LIVE_TRADING_CONFIRMED: "false"
+      KILLSWITCH_STATE_FILE: /app/state/.axel_killswitch.json
+      HALT_STATE_FILE: /app/state/.axel_halt.json
+      LOG_FILE: /var/log/axel/axel.log
+      LOG_MAX_BYTES: ${LOG_MAX_BYTES:-10000000}
+      LOG_BACKUP_COUNT: ${LOG_BACKUP_COUNT:-5}
+    volumes:
+      - axel_state:/app/state
+      - axel_logs:/var/log/axel
     depends_on:
       timescaledb:
         condition: service_healthy
@@ -61,6 +69,120 @@ services:
     volumes:
       - ./axel/dashboard/ui:/usr/share/nginx/html:ro
 
+  # ── Monitoring stack ──────────────────────────────────────────────────────
+  # Read-only exporter. It snapshots durable state per scrape and never writes
+  # to the database, submits an order, or changes risk state.
+  axel-exporter:
+    build: .
+    container_name: axel-exporter
+    restart: unless-stopped
+    command: ["python", "scripts/run_metrics_exporter.py", "--host", "0.0.0.0", "--port", "9108"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://axel:${POSTGRES_PASSWORD:-axelpass}@timescaledb:5432/${POSTGRES_DB:-axel}
+      ENVIRONMENT: paper
+      ALPACA_PAPER: "true"
+      LIVE_TRADING_CONFIRMED: "false"
+      METRICS_HOST: 0.0.0.0
+      METRICS_PORT: "9108"
+      KILLSWITCH_STATE_FILE: /app/state/.axel_killswitch.json
+      HALT_STATE_FILE: /app/state/.axel_halt.json
+      LOG_FILE: /var/log/axel/exporter.log
+      LOG_MAX_BYTES: ${LOG_MAX_BYTES:-10000000}
+      LOG_BACKUP_COUNT: ${LOG_BACKUP_COUNT:-5}
+    volumes:
+      - axel_state:/app/state:ro
+      - axel_logs:/var/log/axel
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${AXEL_METRICS_PORT:-9108}:9108"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9108/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Alertmanager webhook -> PagerDuty / Telegram / generic webhook.
+  axel-alert-relay:
+    build: .
+    container_name: axel-alert-relay
+    restart: unless-stopped
+    command: ["python", "scripts/run_alert_relay.py", "--host", "0.0.0.0", "--port", "9110"]
+    env_file: .env
+    environment:
+      ALERT_RELAY_HOST: 0.0.0.0
+      ALERT_RELAY_PORT: "9110"
+      LOG_FILE: /var/log/axel/alert-relay.log
+      LOG_MAX_BYTES: ${LOG_MAX_BYTES:-10000000}
+      LOG_BACKUP_COUNT: ${LOG_BACKUP_COUNT:-5}
+    volumes:
+      - axel_logs:/var/log/axel
+    ports:
+      - "127.0.0.1:${AXEL_ALERT_RELAY_PORT:-9110}:9110"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9110/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: axel-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:${AXEL_PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - axel-exporter
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: axel-alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./monitoring/alertmanager:/etc/alertmanager:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:${AXEL_ALERTMANAGER_PORT:-9093}:9093"
+    depends_on:
+      - axel-alert-relay
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: axel-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-axel-local-only}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${AXEL_GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   timescaledb_data:
   redis_data:
+  axel_state:
+  axel_logs:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:

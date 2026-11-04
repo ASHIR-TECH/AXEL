@@ -14,14 +14,21 @@ It does not place live orders and cannot grant live authority.
 
 | Work package | Modules |
 | --- | --- |
-| `P2-DATA` | `axel/data/providers/` (`base`, `alpaca`, `fred`, `sec`, `news`), `axel/data/ingest/` (`raw_store`, `store`, `pipeline`, `ohlcv`), `axel/data/normalization/`, `axel/data/schemas.py` |
-| `P2-PIT` | `axel/data/point_in_time/` (`joins.py`): `available_at`, `filter_available`, `as_of`, `join_as_of`, `assert_no_lookahead`, `PointInTimeIndex` |
+| `P2-DATA` | `axel/data/providers/` (`base`, `alpaca`, `fred`, `sec`, `news`, `binance`, `oanda`, `deribit`, `kalshi`), `axel/data/instruments.py`, `axel/data/marketdata.py`, `axel/data/prediction.py`, `axel/data/ingest/` (`raw_store`, `store`, `pipeline`, `ohlcv`), `axel/data/normalization/`, `axel/data/schemas.py` |
+| `P2-PIT` | `axel/data/point_in_time/` (`joins.py`): `available_at`, `filter_available`, `as_of`, `join_as_of`, `assert_no_lookahead`, `PointInTimeIndex`; `axel/data/events.py` (versioned event envelope and replay); `axel/data/quality.py` (fail-closed quality and PIT gates) |
 | `P2-FEAT` | `axel/data/features/` (`price`, `volume`, `momentum`, `volatility`, `fundamentals`, `macro`, `sentiment`, `cross_sectional`, `base`) |
-| `P2-BT` | `axel/data/ml/` (`backtester`, `costs`, `slippage`, `calendars`, `splits`, `metrics`) |
-| `P2-VAL` | `axel/validation/` (`walk_forward`, `robustness`, `multiple_testing`, `deflated_sharpe`, `admission`) |
+| `P2-BT` | `axel/data/ml/` (`backtester`, `costs`, `execution`, `slippage`, `calendars`, `splits`, `metrics`) |
+| `P2-VAL` | `axel/validation/` (`walk_forward`, `robustness`, `multiple_testing`, `deflated_sharpe`, `admission`, `pbo`) |
 | `P2-STRAT` | `axel/strategies/` (`metadata`, `registry`, `baseline/trend`, `baseline/mean_reversion`, `validated/`) |
 | `P2-REP` | `axel/validation/report.py` — reproducible, fingerprinted validation report |
-| `P2-QA` | `tests/data/` + the repo-wide suite (339 tests), plus `scripts/verify_phase2_pipeline.py` for live read-only provider verification |
+| `P2-QA` | `tests/data/` + the repo-wide suite, plus `scripts/verify_phase2_pipeline.py` for live read-only provider verification |
+
+> **Developer 1 extensions (cross-asset data, PIT gates, PBO, execution realism):**
+> see [`phase-2-data-quant-integrations.md`](phase-2-data-quant-integrations.md).
+> These add canonical instrument identity, capability-aware Binance/OANDA/
+> Deribit/Kalshi adapters, the event envelope, fail-closed quality gates,
+> exact CSCV/PBO, prediction-market records, funding/financing costs, partial
+> fills and rejections.
 
 ## Data contract (`axel/data/schemas.py`)
 

@@ -98,4 +98,5 @@ export function tickWatchdog() {
   ]), "SYS");
   for (const src of S.ops.ingest) src.lag = Math.max(.4, src.lag + (Math.random()-.5) * (src.lag * .3 + 1));
   emit("ops", S.ops);
+  emit("watchdog");
 }

@@ -160,6 +160,9 @@ export function tickChatter() {
   }
   if (chance(.18)) log("CHAT", "axel.agents.axel", `[axel] overseer cycle · section scores ${Object.keys(SECTIONS).map(s => `${s.toLowerCase()}:${rnd(.3,.9).toFixed(2)}`).join(" ")}`, "CHAT");
   if (chance(.15)) log("INFO", "axel.data.ingest", `bars INSERT source=${pick(["alpaca","polygon","fred","edgar","gdelt","kalshi"])} point_in_time=true`, "DB");
-  if (chance(.12)) log("INFO", "axel.agents.qr", `[quant-research] observed ${pick(["slippage drift on CRYPTO","panel calibration +0.02","momentum decay in low-beta","funding spread widening"])} → drafted PR #${10+(S.seq%40)}`, "ANALYSIS");
+  if (chance(.3)) {
+    log("INFO", "axel.agents.qr", `[quant-research] observed ${pick(["slippage drift on CRYPTO","panel calibration +0.02","momentum decay in low-beta","funding spread widening"])} → drafted PR #${10+(S.seq%40)}`, "ANALYSIS");
+    emit("qr:pr");
+  }
   S.ops.llmSpend = Math.min(S.ops.llmBudget, S.ops.llmSpend + rnd(.01, .09));
 }
