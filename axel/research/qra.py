@@ -13,6 +13,7 @@ from axel.research.dataset import DatasetRegistry, PointInTimeChecker
 from axel.research.experiment import ExperimentConfig, ExperimentRun, ExperimentRunner
 from axel.research.feature import FeatureRegistry
 from axel.research.hypothesis import Hypothesis, HypothesisRegistry
+from axel.research.model_registry import ModelRecord, ModelRegistry
 from axel.research.pr import CodeChangeProposal, submit_proposal
 from axel.research.report import Recommendation, ResearchReport, build_research_report
 from axel.research.statistics import deflated_sharpe_ratio
@@ -21,7 +22,7 @@ from axel.research.statistics import deflated_sharpe_ratio
 @dataclass(frozen=True)
 class QuantResearchAgent:
     """Untrusted research proposal generator (PRD §3.1).
-    
+
     Proposes hypotheses, configurations, and reviewable PRs.
     Possesses NO production execution or trading authorization authority.
     """
@@ -29,6 +30,7 @@ class QuantResearchAgent:
     hypothesis_registry: HypothesisRegistry = field(default_factory=HypothesisRegistry)
     dataset_registry: DatasetRegistry = field(default_factory=DatasetRegistry)
     feature_registry: FeatureRegistry = field(default_factory=FeatureRegistry)
+    model_registry: ModelRegistry = field(default_factory=ModelRegistry)
     experiment_runner: ExperimentRunner = field(init=False)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -135,6 +137,47 @@ class QuantResearchAgent:
             ],
         )
         return report
+
+    def register_model_candidate(
+        self,
+        report: ResearchReport,
+        model_id: str,
+        version: str,
+        owner: str = "qra",
+        purpose: str = "",
+        asset_classes: list[str] | None = None,
+        known_limitations: list[str] | None = None,
+        **kwargs: Any,
+    ) -> ModelRecord:
+        """Register an evaluated experiment report as a candidate model in the ModelRegistry (§6.4, §10.1)."""
+        run = self.experiment_runner.get(report.run_id)
+        train_data: list[tuple[str, str]] = run.config.dataset_versions if run else []
+        feat_versions: list[tuple[str, str]] = run.config.feature_versions if run else []
+        commit = run.config.code_commit if run else ""
+        m_hash = run.config.config_hash if run else ""
+
+        record = ModelRecord(
+            model_id=model_id,
+            version=version,
+            owner=owner,
+            purpose=purpose or f"Research model evaluated for hypothesis {report.hypothesis_id}",
+            asset_classes=asset_classes or ["stocks"],
+            training_data=train_data,
+            feature_versions=feat_versions,
+            experiment_history=[report.run_id],
+            evaluation_results={
+                "candidate_metrics": report.candidate_results,
+                "baseline_results": report.baseline_results,
+                "statistical_results": report.statistical_results,
+                "recommendation": report.recommendation.value,
+            },
+            known_limitations=known_limitations or report.limitations,
+            code_commit=commit,
+            model_hash=m_hash,
+            **kwargs,
+        )
+        self.model_registry.register(record)
+        return record
 
     def propose_code_change(
         self,

@@ -29,6 +29,19 @@ from axel.data.ml.corporate_actions import (
     apply_dividends,
 )
 from axel.data.ml.costs import NO_FINANCING, ZERO_COSTS, CostModel, FinancingModel
+from axel.data.ml.delisting_model import (
+    BaselineDelistingModel,
+    DelistingFeatures,
+    DelistingModel,
+    DelistingPrediction,
+    StressResult,
+)
+from axel.data.ml.dividend_model import (
+    BaselineDividendModel,
+    DividendFeatures,
+    DividendModel,
+    DividendPrediction,
+)
 from axel.data.ml.execution import ExecutionModel, ExecutionPlan, RejectionReason
 from axel.data.ml.metrics import (
     cagr,
@@ -70,10 +83,18 @@ __all__ = [
     "ZERO_COSTS",
     "BacktestResult",
     "Backtester",
+    "BaselineDelistingModel",
+    "BaselineDividendModel",
     "CostModel",
     "Delisting",
+    "DelistingFeatures",
+    "DelistingModel",
+    "DelistingPrediction",
     "Dividend",
+    "DividendFeatures",
     "DividendMode",
+    "DividendModel",
+    "DividendPrediction",
     "ExecutionModel",
     "ExecutionPlan",
     "ExitReason",
@@ -89,6 +110,7 @@ __all__ = [
     "SlippageModel",
     "Split",
     "StopDistanceRiskModel",
+    "StressResult",
     "TargetStrategy",
     "TerminalPricePolicy",
     "Trade",
