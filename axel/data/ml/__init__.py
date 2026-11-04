@@ -28,6 +28,19 @@ from axel.data.ml.corporate_actions import (
     apply_dividends,
 )
 from axel.data.ml.costs import ZERO_COSTS, CostModel
+from axel.data.ml.delisting_model import (
+    BaselineDelistingModel,
+    DelistingFeatures,
+    DelistingModel,
+    DelistingPrediction,
+    StressResult,
+)
+from axel.data.ml.dividend_model import (
+    BaselineDividendModel,
+    DividendFeatures,
+    DividendModel,
+    DividendPrediction,
+)
 from axel.data.ml.metrics import (
     cagr,
     curve_years,
@@ -60,6 +73,8 @@ from axel.data.ml.slippage import (
 from axel.data.ml.splits import Split, apply_splits
 
 __all__ = [
+    "BaselineDelistingModel",
+    "BaselineDividendModel",
     "DEFAULT_CALENDAR",
     "NO_SLIPPAGE",
     "TRADING_DAYS_PER_YEAR",
@@ -69,8 +84,14 @@ __all__ = [
     "Backtester",
     "CostModel",
     "Delisting",
+    "DelistingFeatures",
+    "DelistingModel",
+    "DelistingPrediction",
     "Dividend",
+    "DividendFeatures",
     "DividendMode",
+    "DividendModel",
+    "DividendPrediction",
     "ExitReason",
     "Fill",
     "FixedBpsSlippage",
@@ -81,6 +102,7 @@ __all__ = [
     "SlippageModel",
     "Split",
     "StopDistanceRiskModel",
+    "StressResult",
     "TargetStrategy",
     "TerminalPricePolicy",
     "Trade",
