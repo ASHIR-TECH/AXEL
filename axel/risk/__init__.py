@@ -28,6 +28,14 @@ from axel.risk.tail import (
     marginal_var,
     stress_loss,
 )
+from axel.risk.turbulence import (
+    covariance_matrix,
+    invert_matrix,
+    is_turbulent,
+    mean_vector,
+    rolling_turbulence,
+    turbulence_index,
+)
 
 __all__ = [
     "LIMITS",
@@ -52,8 +60,14 @@ __all__ = [
     "StressScenario",
     "TailRiskEngine",
     "TailRiskReport",
+    "covariance_matrix",
     "expected_shortfall",
     "historical_var",
+    "invert_matrix",
+    "is_turbulent",
     "marginal_var",
+    "mean_vector",
+    "rolling_turbulence",
     "stress_loss",
+    "turbulence_index",
 ]
