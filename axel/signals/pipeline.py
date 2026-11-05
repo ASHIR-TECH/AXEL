@@ -20,6 +20,7 @@ from axel.risk.limits import LIMITS
 from axel.signals.bankroll import AllocationBankroll
 from axel.signals.classify import SignalKind, classify_message
 from axel.signals.parsers import BetSignal, TradeSignal, parse_bet_signal, parse_trading_signal
+from axel.signals.quality import SignalQuality, score_signal
 from axel.signals.source import TelegramMessage
 
 _DEFAULT_EQUITY = 100_000.0
@@ -36,6 +37,7 @@ class IngestedSignal:
     signal_record: SignalModel | None = None
     proposal: Proposal | None = None
     decision: object | None = None
+    quality: SignalQuality | None = None
     persisted: bool = False
 
 
@@ -177,6 +179,7 @@ class TeleSignalPipeline:
         )
         record = _record_signal(session, signal)
         session.commit()
+        quality = score_signal(parsed)
         remaining = self.bankroll.remaining()
         return IngestedSignal(
             kind=kind,
@@ -186,6 +189,7 @@ class TeleSignalPipeline:
             ),
             parsed=parsed,
             signal_record=record,
+            quality=quality,
             persisted=True,
         )
 
@@ -194,6 +198,7 @@ class TeleSignalPipeline:
         if parsed is None:
             return IngestedSignal(kind=kind, reason="trading keywords present but no parseable symbol/levels")
 
+        quality = score_signal(parsed)
         section = Section.CRYPTO if parsed.market == "crypto" else Section.STOCKS
         signal = Signal(
             section=section,
@@ -211,6 +216,7 @@ class TeleSignalPipeline:
                 reason=_FOREX_NOT_WIRED,
                 parsed=parsed,
                 signal_record=record,
+                quality=quality,
                 persisted=True,
             )
 
@@ -221,6 +227,7 @@ class TeleSignalPipeline:
                 reason="incomplete or invalid entry/stop/target levels; signal recorded for review",
                 parsed=parsed,
                 signal_record=record,
+                quality=quality,
                 persisted=True,
             )
 
@@ -231,6 +238,7 @@ class TeleSignalPipeline:
                 reason=f"below min trade confidence {self.min_trade_confidence:.2f}; signal recorded",
                 parsed=parsed,
                 signal_record=record,
+                quality=quality,
                 persisted=True,
             )
 
@@ -254,5 +262,6 @@ class TeleSignalPipeline:
             signal_record=record,
             proposal=proposal,
             decision=decision,
+            quality=quality,
             persisted=True,
         )
