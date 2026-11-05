@@ -105,6 +105,11 @@ from axel.portfolio.risk import (
     historical_var,
     risk_summary_from_exposure,
 )
+from axel.portfolio.risk_parity import (
+    ERCResult,
+    equal_risk_contribution,
+    solve_equal_risk_contribution,
+)
 from axel.portfolio.simulation import (
     SimulatedExecution,
     SimulationError,
@@ -183,6 +188,7 @@ __all__ = [
     "CostModelConfig",
     "CostSummary",
     "DataQuality",
+    "ERCResult",
     "ExecutionMode",
     "ExperimentRecord",
     "ExperimentRegistry",
@@ -252,6 +258,7 @@ __all__ = [
     "covariance_diagnostics",
     "deflated_sharpe_ratio",
     "distance_matrix",
+    "equal_risk_contribution",
     "estimate_rebalance_cost",
     "estimate_trade_cost",
     "evaluate_allocation_constraints",
@@ -283,6 +290,7 @@ __all__ = [
     "shrink_covariance",
     "simulate_rebalance",
     "simulated_position_quantities",
+    "solve_equal_risk_contribution",
     "stability_analysis",
     "turnover",
     "validate_allocation_proposal",
