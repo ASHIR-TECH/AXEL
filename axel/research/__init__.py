@@ -10,6 +10,19 @@ from axel.research.dataset import (
     PointInTimeChecker,
     ensure_utc,
 )
+from axel.research.event_study import (
+    CrossSectionalSummary,
+    EventStudyResult,
+    MarketModelFit,
+    abnormal_returns,
+    bootstrap_mean_ci,
+    cross_sectional_summary,
+    cumulative_abnormal_return,
+    fit_market_model,
+    one_sample_t_test,
+    run_event_study,
+    student_t_two_sided_p_value,
+)
 from axel.research.experiment import (
     ExperimentConfig,
     ExperimentRun,
@@ -60,10 +73,13 @@ __all__ = [
     "BaselineResult",
     # PR & Governance
     "CodeChangeProposal",
+    "CrossSectionalSummary",
     # Dataset
     "DatasetLineage",
     "DatasetRegistry",
     "DatasetVersion",
+    # Event study
+    "EventStudyResult",
     # Experiment
     "ExperimentConfig",
     "ExperimentRun",
@@ -79,6 +95,7 @@ __all__ = [
     "HypothesisRegistry",
     "HypothesisStatus",
     "HypothesisVersion",
+    "MarketModelFit",
     "PointInTimeChecker",
     "PromotionState",
     "ProposalStatus",
@@ -89,23 +106,31 @@ __all__ = [
     "ResearchReport",
     # Validation
     "ValidationProtocol",
+    "abnormal_returns",
+    "bootstrap_mean_ci",
     # Statistics
     "brier_score",
     "build_research_report",
     "calibration_metrics",
     "compare_to_baselines",
+    "cross_sectional_summary",
+    "cumulative_abnormal_return",
     "default_baselines",
     "deflated_sharpe_ratio",
     "ensure_utc",
     "expected_max_sharpe",
+    "fit_market_model",
     "holdout_split",
     "is_restricted_path",
     "log_loss",
     "multiple_testing_correction",
+    "one_sample_t_test",
     "perturb_parameters",
     "probabilistic_sharpe_ratio",
     "purged_embargo_split",
+    "run_event_study",
     "sharpe_ratio_stderr",
+    "student_t_two_sided_p_value",
     "submit_proposal",
     "time_split",
     "walk_forward_evaluate",
