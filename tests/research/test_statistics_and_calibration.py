@@ -10,6 +10,8 @@ from axel.research.statistics import (
     deflated_sharpe_ratio,
     log_loss,
     multiple_testing_correction,
+    probabilistic_sharpe_ratio,
+    sharpe_ratio_stderr,
 )
 
 
@@ -22,6 +24,26 @@ def test_deflated_sharpe_ratio_bounds_and_deflation():
     dsr_many = deflated_sharpe_ratio(observed_sharpe=2.0, n=250, num_trials=100)
     assert 0.0 <= dsr_many <= 1.0
     assert dsr_many < dsr_single
+
+
+def test_sharpe_stderr_uses_sample_correction():
+    # Normal returns: variance term is 1 + 0.5 * SR^2 and the estimator uses
+    # the (n - 1) sample correction, matching Bailey & Lopez de Prado.
+    assert sharpe_ratio_stderr(1.0, 100) == pytest.approx((1.5 / 99) ** 0.5)
+
+
+def test_deflated_sharpe_zero_trial_variance_has_zero_benchmark():
+    observed = 1.5
+    n = 250
+    deflated = deflated_sharpe_ratio(
+        observed_sharpe=observed,
+        n=n,
+        num_trials=50,
+        variance_of_sr=0.0,
+    )
+    # With no dispersion across trials the expected maximum Sharpe is zero,
+    # so DSR reduces exactly to PSR against a zero benchmark.
+    assert deflated == pytest.approx(probabilistic_sharpe_ratio(observed, 0.0, n))
 
 
 def test_multiple_testing_correction_fdr_and_bonferroni():
