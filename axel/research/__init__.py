@@ -10,6 +10,14 @@ from axel.research.dataset import (
     PointInTimeChecker,
     ensure_utc,
 )
+from axel.research.drift import (
+    DriftMonitor,
+    DriftReport,
+    FeatureDriftResult,
+    feature_drift_report,
+    population_stability_index,
+    psi_alert_level,
+)
 from axel.research.event_study import (
     CrossSectionalSummary,
     EventStudyResult,
@@ -37,6 +45,12 @@ from axel.research.hypothesis import (
     HypothesisRegistry,
     HypothesisStatus,
     HypothesisVersion,
+)
+from axel.research.model_registry import (
+    DeploymentState,
+    ModelRecord,
+    ModelRegistry,
+    PerformanceSnapshot,
 )
 from axel.research.pr import (
     RESTRICTED_PATH_PREFIXES,
@@ -69,42 +83,42 @@ from axel.research.validation import (
 __all__ = [
     "RESTRICTED_PATH_PREFIXES",
     "VALID_STATUS_TRANSITIONS",
-    # Baseline
     "BaselineResult",
-    # PR & Governance
     "CodeChangeProposal",
     "CrossSectionalSummary",
     # Dataset
     "DatasetLineage",
     "DatasetRegistry",
     "DatasetVersion",
+    # Experiment
+    "DeploymentState",
+    "DriftMonitor",
+    "DriftReport",
     # Event study
     "EventStudyResult",
-    # Experiment
     "ExperimentConfig",
     "ExperimentRun",
     "ExperimentRunner",
     "ExperimentStatus",
-    # Feature
     "FeatureDefinition",
+    "FeatureDriftResult",
     "FeatureRegistry",
     "FeatureVersion",
     "GovernanceGate",
-    # Hypothesis
     "Hypothesis",
     "HypothesisRegistry",
     "HypothesisStatus",
     "HypothesisVersion",
     "MarketModelFit",
+    "ModelRecord",
+    "ModelRegistry",
+    "PerformanceSnapshot",
     "PointInTimeChecker",
     "PromotionState",
     "ProposalStatus",
-    # Orchestrator
     "QuantResearchAgent",
-    # Report
     "Recommendation",
     "ResearchReport",
-    # Validation
     "ValidationProtocol",
     "abnormal_returns",
     "bootstrap_mean_ci",
@@ -119,6 +133,7 @@ __all__ = [
     "deflated_sharpe_ratio",
     "ensure_utc",
     "expected_max_sharpe",
+    "feature_drift_report",
     "fit_market_model",
     "holdout_split",
     "is_restricted_path",
@@ -126,7 +141,9 @@ __all__ = [
     "multiple_testing_correction",
     "one_sample_t_test",
     "perturb_parameters",
+    "population_stability_index",
     "probabilistic_sharpe_ratio",
+    "psi_alert_level",
     "purged_embargo_split",
     "run_event_study",
     "sharpe_ratio_stderr",

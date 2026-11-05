@@ -6,6 +6,19 @@ Zero LLM imports permitted.
 from axel.execution.alpaca import AlpacaAdapter
 from axel.execution.approval import ApprovalService, ApprovalTicket
 from axel.execution.broker_base import BrokerAdapter, OrderResult, PositionInfo
+from axel.execution.intelligence import (
+    ExecutionSchedule,
+    ExecutionStep,
+    ImplementationShortfallBreakdown,
+    ScheduleComparisonReport,
+    ScheduleType,
+    calculate_implementation_shortfall,
+    compare_execution_policies,
+    estimate_square_root_impact,
+    generate_almgren_chriss_schedule,
+    generate_twap_schedule,
+    generate_vwap_schedule,
+)
 from axel.execution.order_fsm import (
     InvalidOrderTransitionError,
     OrderStateMachine,
@@ -21,6 +34,9 @@ __all__ = [
     "ApprovalService",
     "ApprovalTicket",
     "BrokerAdapter",
+    "ExecutionSchedule",
+    "ExecutionStep",
+    "ImplementationShortfallBreakdown",
     "InvalidOrderTransitionError",
     "OrderResult",
     "OrderStateMachine",
@@ -28,4 +44,12 @@ __all__ = [
     "PositionInfo",
     "ReconciliationEngine",
     "ReconciliationReport",
+    "ScheduleComparisonReport",
+    "ScheduleType",
+    "calculate_implementation_shortfall",
+    "compare_execution_policies",
+    "estimate_square_root_impact",
+    "generate_almgren_chriss_schedule",
+    "generate_twap_schedule",
+    "generate_vwap_schedule",
 ]
