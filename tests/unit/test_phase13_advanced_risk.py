@@ -96,6 +96,18 @@ class TestGARCH:
         v2 = params.omega + params.alpha * ((-0.02) ** 2) + params.beta * v1
         assert g_vars[1] == pytest.approx(v2, rel=1e-6)
 
+    def test_garch_forecast_first_step_uses_current_variance(self):
+        # ``last_variance`` is sigma_t^2, so the one-step forecast is
+        # V_L + (alpha + beta)^1 * (sigma_t^2 - V_L).  There is no extra
+        # lag: the exponent for horizon k is k, not k + 1 or k - 1.
+        params = GARCHParameters(omega=0.00001, alpha=0.09, beta=0.88)
+        current = params.unconditional_variance * 4.0
+        forecast = garch_forecast(current, params, horizon=1)
+        expected = params.unconditional_variance + params.persistence * (
+            current - params.unconditional_variance
+        )
+        assert forecast[0] == pytest.approx(expected)
+
     def test_garch_forecast_converges_to_unconditional(self):
         params = GARCHParameters(omega=0.00001, alpha=0.09, beta=0.88)
         high_init = params.unconditional_variance * 5.0
