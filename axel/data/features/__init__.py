@@ -40,8 +40,12 @@ from axel.data.features.technical import (
 )
 from axel.data.features.volatility import (
     average_true_range,
+    ewma_volatility,
+    garman_klass_volatility,
     parkinson_volatility,
     realized_volatility,
+    rogers_satchell_volatility,
+    yang_zhang_volatility,
 )
 from axel.data.features.volume import dollar_volume, volume, volume_ratio, volume_zscore
 
@@ -60,10 +64,12 @@ __all__ = [
     "dollar_volume",
     "donchian_position",
     "ema",
+    "ewma_volatility",
     "feature_for",
     "feature_params",
     "filing_change",
     "filing_value",
+    "garman_klass_volatility",
     "keyword_sentiment",
     "log_return",
     "macd",
@@ -80,6 +86,7 @@ __all__ = [
     "quote_imbalance",
     "rank_by_time",
     "realized_volatility",
+    "rogers_satchell_volatility",
     "rsi",
     "simple_return",
     "spread_bps",
@@ -88,5 +95,6 @@ __all__ = [
     "volume",
     "volume_ratio",
     "volume_zscore",
+    "yang_zhang_volatility",
     "zscore_by_time",
 ]
