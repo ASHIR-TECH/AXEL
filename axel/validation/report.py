@@ -13,6 +13,7 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from hashlib import sha256
+from math import sqrt
 
 from axel.data.ml import Backtester, TradingCalendar
 from axel.data.schemas import BarRecord
@@ -171,8 +172,15 @@ def build_validation_report(
     )
 
     trial_count = max(n_trials, len(variant_expectancies) + 1)
+    # ``full_metrics["sharpe"]`` is annualised.  The probabilistic/deflated
+    # Sharpe formulas expect a per-period Sharpe, so deannualise with the
+    # same observation rate the metric used.
+    annualisation = full_metrics.get("observations_per_year", 1.0)
+    per_period_sharpe = (
+        full_metrics["sharpe"] / sqrt(annualisation) if annualisation > 0 else 0.0
+    )
     deflated = deflated_sharpe_ratio(
-        full_metrics["sharpe"],
+        per_period_sharpe,
         n_trials=trial_count,
         variance_of_sr=variance_of_sr,
         n_returns=max(len(full.equity_curve) - 1, 2),
