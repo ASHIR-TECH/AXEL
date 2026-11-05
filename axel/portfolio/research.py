@@ -227,10 +227,15 @@ def performance_metrics(
     downside_deviation = sqrt(sum(value * value for value in downside) / len(downside))
     sortino = None
     if downside_deviation > 0:
-        sortino = (mean(excess) - target_return) / downside_deviation
+        # Annualise consistently with the Sharpe ratio above; the downside
+        # deviation is a per-period shortfall, so the ratio scales by
+        # sqrt(periods_per_year) exactly like Sharpe.
+        sortino = (
+            (mean(excess) - target_return) / downside_deviation * sqrt(periods_per_year)
+        )
         warnings.append(
-            "Sortino ratio uses a period excess-mean and a zero-target downside-deviation "
-            "convention; do not compare it with a differently annualized implementation"
+            "Sortino ratio uses a full-sample downside deviation against a per-period "
+            "target and is annualised with sqrt(periods_per_year)."
         )
     else:
         warnings.append("Sortino ratio is undefined because downside deviation is zero")
