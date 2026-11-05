@@ -77,13 +77,19 @@ def black_scholes_price(inputs: PricingInputs) -> tuple[float, Greeks]:
     q = inputs.dividend_yield
 
     if sigma == 0.0 or T == 0.0:
-        # Intrinsic value at expiry / zero vol.
+        # Deterministic payoff: with no volatility the terminal value is the
+        # forward intrinsic value, discounted back to today.  At T = 0 the
+        # discount factors are one, so this reduces to spot intrinsic value.
+        forward_spot = S * math.exp(-q * T)
+        forward_strike = K * math.exp(-r * T)
         if inputs.option_right == OptionRight.CALL:
-            intrinsic = max(S - K, 0.0)
+            intrinsic = max(forward_spot - forward_strike, 0.0)
+            delta = math.exp(-q * T) if intrinsic > 0.0 else 0.0
         else:
-            intrinsic = max(K - S, 0.0)
+            intrinsic = max(forward_strike - forward_spot, 0.0)
+            delta = -math.exp(-q * T) if intrinsic > 0.0 else 0.0
         greeks = Greeks(
-            delta=1.0 if intrinsic > 0 and inputs.option_right == OptionRight.CALL else 0.0,
+            delta=delta,
             gamma=0.0,
             vega=0.0,
             theta=0.0,
