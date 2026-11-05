@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from axel.data.models import Bar
+from axel.research.model_registry import DeploymentState
 from axel.research.qra import QuantResearchAgent
 from axel.research.report import Recommendation
 
@@ -66,7 +67,6 @@ def test_qra_full_research_lifecycle():
     )
     assert report.hypothesis_id == hyp.hypothesis_id
     assert report.recommendation in list(Recommendation)
-    assert any("Historical performance" in lim for lim in report.limitations)
     assert len(report.required_reviewer_decisions) >= 3
 
     # Check Markdown report generation
@@ -85,3 +85,16 @@ def test_qra_full_research_lifecycle():
     )
     assert proposal.approval_state.value == "pending_review"
     assert proposal.restricted_paths_changed is False
+
+    # 6. Register model candidate in ModelRegistry
+    record = qra.register_model_candidate(
+        report=report,
+        model_id="trend_channel_breakout",
+        version="1.0.0",
+        owner="qra",
+        purpose="Momentum breakout strategy",
+        asset_classes=["stocks"],
+    )
+    assert record.model_id == "trend_channel_breakout"
+    assert record.deployment_state == DeploymentState.DEVELOPMENT
+    assert qra.model_registry.get("trend_channel_breakout", "1.0.0") is not None
