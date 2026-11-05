@@ -66,6 +66,18 @@ def test_shin_single_outcome():
     assert result == pytest.approx([0.5])
 
 
+def test_shin_devig_uses_favorite_longshot_correction():
+    # Shin's insider-trading model pulls probability mass away from the
+    # longshot (decimal odds 5.0) and toward the favourite (1.2).  This is
+    # the defining behaviour that distinguishes Shin from proportional
+    # normalization, which would return [0.80645..., 0.19355...].
+    result = shin_probabilities([1.2, 5.0])
+    assert result == pytest.approx([0.8166666667, 0.1833333334], abs=1e-9)
+    assert sum(result) == pytest.approx(1.0, abs=1e-9)
+    proportional = proportional_normalization([1.2, 5.0])
+    assert result[1] < proportional[1]
+
+
 def test_american_to_decimal():
     assert american_to_decimal(150.0) == 2.5  # +150 -> 2.50
     assert american_to_decimal(-200.0) == 1.5  # -200 -> 1.50

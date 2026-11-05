@@ -10,6 +10,7 @@ a single "correct" probability.
 
 from __future__ import annotations
 
+import math
 from fractions import Fraction
 from typing import Any
 
@@ -59,40 +60,36 @@ def shin_probabilities(
         # No overround — raw probs already sum to <= 1, return normalized.
         return proportional_normalization(decimal_odds)
 
-    # Shin's method: find mu such that sum(q_i / (1 + mu * (q_i / p_i - 1))) ... 
-    # Simplified: iterate on the Shin mu parameter.
-    # p_i = q_i / (1 + mu) ... we solve sum(p_i) = 1
-    # Using the common formulation: p_i proportional to q_i^z for z in (0,1)
-    # where z is chosen so sum(p_i) = 1.
+    # Shin (1993) de-vig.  With booksum-normalized implied probabilities
+    # ``q_i / Q`` and insider proportion ``z``, the fair probabilities are
+    #
+    #   p_i(z) = (sqrt(z^2 + 4 (1 - z) q_i^2 / Q) - z) / (2 (1 - z)).
+    #
+    # ``z`` is the fraction of informed bettors and is solved so that the
+    # ``p_i`` sum to one.  At ``z = 0`` the sum is ``sqrt(Q) > 1``; as
+    # ``z -> 1`` it falls below one, so the root is unique and can be found
+    # by bisection.
+    def _shin_probs(z: float) -> list[float]:
+        denominator = 2.0 * (1.0 - z)
+        return [
+            (math.sqrt(z * z + 4.0 * (1.0 - z) * q * q / q_sum) - z) / denominator
+            for q in raw_probs
+        ]
 
-    def _power_probs(z: float) -> list[float]:
-        weighted = [q ** z for q in raw_probs]
-        total = sum(weighted)
-        if total <= 0:
-            return [1.0 / n] * n
-        return [w / total for w in weighted]
-
-    # Binary search on z in [0, 1]
-    lo, hi = 0.0, 1.0
-    z = 0.5
-    converged = False
+    lo, hi = 0.0, 1.0 - 1e-12
     for _ in range(max_iterations):
-        z = (lo + hi) / 2.0
-        p = _power_probs(z)
-        total = sum(p)
+        mid = (lo + hi) / 2.0
+        probabilities = _shin_probs(mid)
+        total = sum(probabilities)
         if abs(total - 1.0) < tolerance:
-            converged = True
-            break
-        if total < 1.0:
-            hi = z
+            return probabilities
+        if total > 1.0:
+            lo = mid
         else:
-            lo = z
+            hi = mid
 
-    if not converged:
-        # Fall back to proportional normalization
-        return proportional_normalization(decimal_odds)
-
-    return _power_probs(z)
+    # Fall back to proportional normalization if the solver does not converge.
+    return proportional_normalization(decimal_odds)
 
 
 def decimal_from_probability(p: float) -> float:
