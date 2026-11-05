@@ -13,6 +13,15 @@ from axel.agents.analysts import (
 from axel.agents.audit import PromptAuditLog, PromptAuditRecord
 from axel.agents.budget import LlmBudgetGuard
 from axel.agents.manager import StocksSectionManager
+from axel.agents.memory import (
+    DecisionEntry,
+    DecisionMemory,
+    MemoryEntry,
+    MemoryFormatError,
+    ReflectionEntry,
+    decision_id,
+    reflection_id,
+)
 from axel.agents.openai_compatible import (
     Completion,
     OpenAICompatibleGateway,
@@ -36,14 +45,19 @@ __all__ = [
     "Completion",
     "DebateArgument",
     "DebateResult",
+    "DecisionEntry",
+    "DecisionMemory",
     "FundamentalAnalyst",
     "LlmBudgetGuard",
     "MacroAnalyst",
+    "MemoryEntry",
+    "MemoryFormatError",
     "OpenAICompatibleGateway",
     "Phase3ExitReport",
     "PromptAuditLog",
     "PromptAuditRecord",
     "PromptSanitizer",
+    "ReflectionEntry",
     "SentimentAnalyst",
     "StocksAnalyst",
     "StocksExpertPanel",
@@ -52,7 +66,9 @@ __all__ = [
     "UntrustedDocument",
     "build_stock_proposal",
     "configured_gateway",
+    "decision_id",
     "gateway_from_settings",
+    "reflection_id",
     "sanitize_document",
     "simulate_stocks_agent_week",
     "validate_agent_configuration",
