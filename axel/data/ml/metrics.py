@@ -166,10 +166,14 @@ def sortino(
     periods_per_year: float | None = None,
 ) -> float:
     series_returns = equity_returns(curve)
-    downside = [value for value in series_returns if value < target]
-    if not downside:
+    if not series_returns:
         return 0.0
-    downside_deviation = (sum((value - target) ** 2 for value in downside) / len(downside)) ** 0.5
+    # Standard Sortino: root-mean-square shortfall over the full sample, not
+    # an average over only the downside observations.  Dividing by the number
+    # of downside observations would overstate risk and disagree with
+    # ``downside_deviation``.
+    squared_shortfall = [min(value - target, 0.0) ** 2 for value in series_returns]
+    downside_deviation = sqrt(sum(squared_shortfall) / len(squared_shortfall))
     if downside_deviation == 0:
         return 0.0
     scale = observations_per_year(curve, periods_per_year=periods_per_year)

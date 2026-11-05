@@ -98,6 +98,25 @@ def test_metrics_from_equity_curve() -> None:
     assert isinstance(sharpe(curve), float)
 
 
+def test_sortino_uses_full_sample_downside_deviation() -> None:
+    from axel.data.ml.metrics import sortino
+
+    curve = [
+        (datetime(2026, 1, 1, tzinfo=UTC), 100.0),
+        (datetime(2026, 1, 2, tzinfo=UTC), 110.0),
+        (datetime(2026, 1, 3, tzinfo=UTC), 99.0),
+        (datetime(2026, 1, 4, tzinfo=UTC), 108.9),
+    ]
+    # Returns are +10%, -10%, +10%.  The downside deviation is the RMS
+    # shortfall over all three returns: sqrt(0.01 / 3).
+    expected = (0.03333333333333333) / (0.01 / 3) ** 0.5
+    assert sortino(curve, periods_per_year=1.0) == pytest.approx(expected)
+    # The old bug divided by the number of downside observations only.
+    assert sortino(curve, periods_per_year=1.0) != pytest.approx(
+        0.03333333333333333 / 0.1
+    )
+
+
 def test_profit_factor_from_trades() -> None:
     class Trade:
         def __init__(self, pnl: float) -> None:
