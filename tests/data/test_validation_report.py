@@ -94,11 +94,12 @@ def test_report_contains_walk_forward_robustness_and_admission() -> None:
 def test_report_deannualizes_sharpe_before_deflating(monkeypatch) -> None:
     import axel.validation.report as report_module
 
-    captured: dict[str, float] = {}
+    captured: dict[str, object] = {}
     real = report_module.deflated_sharpe_ratio
 
     def spy(observed_sr, **kwargs):
         captured["observed_sr"] = observed_sr
+        captured.update(kwargs)
         return real(observed_sr, **kwargs)
 
     monkeypatch.setattr(report_module, "deflated_sharpe_ratio", spy)
@@ -108,6 +109,11 @@ def test_report_deannualizes_sharpe_before_deflating(monkeypatch) -> None:
     assert annualisation != pytest.approx(1.0)
     expected = report.full_metrics["sharpe"] / sqrt(annualisation)
     assert captured["observed_sr"] == pytest.approx(expected)
+    # Higher moments are passed through: raw kurtosis = excess + 3.
+    assert captured["skew"] == pytest.approx(report.full_metrics["skewness"])
+    assert captured["kurtosis"] == pytest.approx(
+        report.full_metrics["excess_kurtosis"] + 3.0
+    )
 
 
 def test_report_does_not_depend_on_bar_object_identity() -> None:

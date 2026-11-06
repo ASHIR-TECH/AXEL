@@ -184,6 +184,10 @@ def build_validation_report(
         n_trials=trial_count,
         variance_of_sr=variance_of_sr,
         n_returns=max(len(full.equity_curve) - 1, 2),
+        # PSR expects raw kurtosis (normal = 3); metrics reports excess
+        # kurtosis (normal = 0), so convert at the boundary.
+        skew=full_metrics.get("skewness", 0.0),
+        kurtosis=full_metrics.get("excess_kurtosis", 0.0) + 3.0,
     )
     decision = evaluate_admission(
         full_metrics, deflated_sharpe=deflated, regimes=regimes, criteria=criteria
