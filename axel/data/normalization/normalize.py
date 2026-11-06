@@ -46,9 +46,8 @@ def flag_record(record: CanonicalRecord) -> CanonicalRecord:
     elif isinstance(record, FilingRecord):
         if record.event_time == record.available_at:
             flags.append("SAME_DAY_FILING")
-    elif isinstance(record, NewsRecord):
-        if not record.entities:
-            flags.append("NO_ENTITIES")
+    elif isinstance(record, NewsRecord) and not record.entities:
+        flags.append("NO_ENTITIES")
     if not flags:
         return record
     return replace(record, provenance=record.provenance.with_flags(*flags))
