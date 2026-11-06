@@ -10,6 +10,14 @@ from axel.research.dataset import (
     PointInTimeChecker,
     ensure_utc,
 )
+from axel.research.drift import (
+    DriftMonitor,
+    DriftReport,
+    FeatureDriftResult,
+    feature_drift_report,
+    population_stability_index,
+    psi_alert_level,
+)
 from axel.research.event_study import (
     CrossSectionalSummary,
     EventStudyResult,
@@ -22,13 +30,6 @@ from axel.research.event_study import (
     one_sample_t_test,
     run_event_study,
     student_t_two_sided_p_value,
-from axel.research.drift import (
-    DriftMonitor,
-    DriftReport,
-    FeatureDriftResult,
-    feature_drift_report,
-    population_stability_index,
-    psi_alert_level,
 )
 from axel.research.experiment import (
     ExperimentConfig,
@@ -84,12 +85,17 @@ __all__ = [
     "VALID_STATUS_TRANSITIONS",
     "BaselineResult",
     "CodeChangeProposal",
+    "CrossSectionalSummary",
+    # Dataset
     "DatasetLineage",
     "DatasetRegistry",
     "DatasetVersion",
+    # Experiment
     "DeploymentState",
     "DriftMonitor",
     "DriftReport",
+    # Event study
+    "EventStudyResult",
     "ExperimentConfig",
     "ExperimentRun",
     "ExperimentRunner",
@@ -103,6 +109,7 @@ __all__ = [
     "HypothesisRegistry",
     "HypothesisStatus",
     "HypothesisVersion",
+    "MarketModelFit",
     "ModelRecord",
     "ModelRegistry",
     "PerformanceSnapshot",
@@ -113,6 +120,9 @@ __all__ = [
     "Recommendation",
     "ResearchReport",
     "ValidationProtocol",
+    "abnormal_returns",
+    "bootstrap_mean_ci",
+    # Statistics
     "brier_score",
     "build_research_report",
     "calibration_metrics",
@@ -124,6 +134,7 @@ __all__ = [
     "ensure_utc",
     "expected_max_sharpe",
     "feature_drift_report",
+    "fit_market_model",
     "holdout_split",
     "is_restricted_path",
     "log_loss",
