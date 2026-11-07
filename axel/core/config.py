@@ -92,6 +92,13 @@ class AxelSettings(BaseSettings):
     dashboard_stream_heartbeat_seconds: float = 5.0
     llm_monthly_budget_usd: float = 50.0
 
+    # Deterministic paper runtime. The workers only run when environment is
+    # "paper"; the seed makes synthetic bars reproducible across restarts.
+    paper_runtime_interval_seconds: float = 5.0
+    paper_runtime_seed: int = 7
+    paper_runtime_signal_ttl_seconds: int = 900
+    paper_runtime_proposal_cooldown_seconds: int = 30
+
     @model_validator(mode="after")
     def validate_safety_locks(self) -> "AxelSettings":
         """
