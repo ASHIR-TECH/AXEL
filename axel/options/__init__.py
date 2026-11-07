@@ -11,6 +11,13 @@ from axel.options.contracts import (
     OptionsProposal,
     OptionsRiskDecision,
 )
+from axel.options.heston import (
+    HestonInputs,
+    HestonParameters,
+    heston_greeks,
+    heston_price,
+    heston_price_and_greeks,
+)
 from axel.options.payoff import (
     PayoffGrid,
     compute_break_even_points,
@@ -57,6 +64,8 @@ __all__ = [
     "REQUIRES_REVIEW",
     "ExerciseStyle",
     "Greeks",
+    "HestonInputs",
+    "HestonParameters",
     "OptionContract",
     "OptionLeg",
     "OptionQuote",
@@ -72,6 +81,9 @@ __all__ = [
     "compute_break_even_points",
     "compute_leg_payoff",
     "compute_structure_payoff",
+    "heston_greeks",
+    "heston_price",
+    "heston_price_and_greeks",
     "implied_volatility",
     "max_gain",
     "max_loss",
