@@ -683,6 +683,26 @@ The optimizer must not interpret them as guaranteed outcomes.
 
     sigma_p = sqrt(w' * Sigma * w)
 
+### Covariance estimation
+
+Covariance estimates must be symmetric and positive semidefinite,
+report their observation count and coverage, and never silently fill
+missing returns with zero.
+
+For an exponentially weighted covariance, observations are ordered
+chronologically and the newest complete observation must receive the
+largest weight:
+
+    w_i proportional to decay^(n - 1 - i)
+
+where i = 0 is the oldest of the n complete observations. Weights are
+normalised to sum to one. A reversed ordering lets stale data dominate
+the estimate and must be covered by a regression test.
+
+Any shrinkage toward a target must be explicit, versioned and
+reported; it must not be presented as a calibrated Ledoit-Wolf
+estimate unless it was fitted as one.
+
 ## 7.4 Risk contributions
 
     RC_i = w_i * (Sigma*w)_i / sigma_p
@@ -887,6 +907,20 @@ GARCH(1,1):
                 + beta*sigma_(t-1)^2
 
 Constraints must ensure a valid variance process.
+
+Both recursions estimate the variance of period t from the input
+from period t-1. When they are applied to an observed sequence
+r_0 ... r_(n-1), output element i is the variance for period i+1
+and therefore consumes r_i = r_((i+1)-1). This indexing must be
+tested explicitly so a shift cannot silently introduce look-ahead.
+
+Multi-step GARCH forecasts mean-revert to the unconditional
+variance V_L = omega / (1 - alpha - beta):
+
+    E[sigma_(t+k)^2] = V_L
+        + (alpha + beta)^k * (sigma_t^2 - V_L)
+
+where sigma_t^2 is the current filtered variance and k >= 1.
 
 ## 9.3 Correlation stress
 

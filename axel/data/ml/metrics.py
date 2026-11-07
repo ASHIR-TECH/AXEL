@@ -13,11 +13,23 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
-from math import inf, sqrt
+from math import ceil, inf, sqrt
 from typing import Protocol
 
 from axel.data.ml.calendars import TRADING_DAYS_PER_YEAR, TradingCalendar
-from axel.util.stats import elapsed_years, implied_periods_per_year, mean, sample_std
+from axel.util.stats import (
+    elapsed_years,
+    implied_periods_per_year,
+    mean,
+    quantile,
+    sample_std,
+)
+from axel.util.stats import (
+    excess_kurtosis as sample_excess_kurtosis,
+)
+from axel.util.stats import (
+    skewness as sample_skewness,
+)
 
 TRADING_DAYS = TRADING_DAYS_PER_YEAR
 
@@ -154,10 +166,14 @@ def sortino(
     periods_per_year: float | None = None,
 ) -> float:
     series_returns = equity_returns(curve)
-    downside = [value for value in series_returns if value < target]
-    if not downside:
+    if not series_returns:
         return 0.0
-    downside_deviation = (sum((value - target) ** 2 for value in downside) / len(downside)) ** 0.5
+    # Standard Sortino: root-mean-square shortfall over the full sample, not
+    # an average over only the downside observations.  Dividing by the number
+    # of downside observations would overstate risk and disagree with
+    # ``downside_deviation``.
+    squared_shortfall = [min(value - target, 0.0) ** 2 for value in series_returns]
+    downside_deviation = sqrt(sum(squared_shortfall) / len(squared_shortfall))
     if downside_deviation == 0:
         return 0.0
     scale = observations_per_year(curve, periods_per_year=periods_per_year)
@@ -200,6 +216,176 @@ def expectancy(trades: Sequence[HasPnl]) -> float:
     return mean([trade.r_multiple for trade in trades])
 
 
+def average_win(trades: Sequence[HasPnl]) -> float:
+    """Mean profit of winning trades (0.0 when there are none)."""
+    return mean([trade.pnl for trade in trades if trade.pnl > 0])
+
+
+def average_loss(trades: Sequence[HasPnl]) -> float:
+    """Mean loss of losing trades as a positive magnitude (0.0 when none)."""
+    return mean([-trade.pnl for trade in trades if trade.pnl < 0])
+
+
+def payoff_ratio(trades: Sequence[HasPnl]) -> float:
+    """Average win divided by average loss; 0.0 when either side is empty."""
+    loss = average_loss(trades)
+    if loss == 0:
+        return 0.0
+    return average_win(trades) / loss
+
+
+def downside_deviation(
+    curve: Sequence[tuple[datetime, float]],
+    *,
+    target: float = 0.0,
+    periods_per_year: float | None = None,
+) -> float:
+    """Annualised root-mean-square return shortfall below ``target``.
+
+    Only returns below the target contribute, so an equity curve that gains
+    steadily but unevenly is not penalised for its upside. ``target`` is a
+    per-period return, matching the units of ``equity_returns``.
+    """
+    series_returns = equity_returns(curve)
+    if not series_returns:
+        return 0.0
+    squared = [min(value - target, 0.0) ** 2 for value in series_returns]
+    rms = sqrt(sum(squared) / len(squared))
+    scale = observations_per_year(curve, periods_per_year=periods_per_year)
+    return rms * sqrt(scale)
+
+
+def calmar(curve: Sequence[tuple[datetime, float]]) -> float:
+    """CAGR divided by the absolute maximum drawdown (0.0 if no drawdown)."""
+    drawdown = abs(max_drawdown(curve))
+    if drawdown == 0:
+        return 0.0
+    return cagr(curve) / drawdown
+
+
+def omega_ratio(
+    curve: Sequence[tuple[datetime, float]],
+    *,
+    required_return: float = 0.0,
+    periods_per_year: float | None = None,
+) -> float:
+    """Omega ratio: gains above a threshold over losses below it.
+
+    ``required_return`` is annual; it is converted to a per-period threshold
+    with the same annualisation basis as the rest of this module. Returns
+    ``inf`` when there is upside and no downside, and 0.0 when neither exists.
+    """
+    series_returns = equity_returns(curve)
+    if not series_returns:
+        return 0.0
+    scale = observations_per_year(curve, periods_per_year=periods_per_year)
+    if scale <= 0:
+        return 0.0
+    threshold = (1.0 + required_return) ** (1.0 / scale) - 1.0
+    excess = [value - threshold for value in series_returns]
+    gains = sum(value for value in excess if value > 0)
+    losses = -sum(value for value in excess if value < 0)
+    if losses == 0:
+        return inf if gains > 0 else 0.0
+    return gains / losses
+
+
+def tail_ratio(
+    curve: Sequence[tuple[datetime, float]],
+    *,
+    upper: float = 0.95,
+    lower: float = 0.05,
+) -> float:
+    """Absolute upper-tail return divided by the absolute lower-tail return.
+
+    Values above 1 mean the right tail is larger than the left. The quantile
+    probability convention matches ``axel.util.stats.quantile`` (type 7).
+    """
+    if not 0.0 < lower < upper < 1.0:
+        raise ValueError("quantiles must satisfy 0 < lower < upper < 1")
+    series_returns = equity_returns(curve)
+    if not series_returns:
+        return 0.0
+    lower_value = quantile(series_returns, lower)
+    if lower_value == 0:
+        return 0.0
+    return abs(quantile(series_returns, upper)) / abs(lower_value)
+
+
+def return_skewness(curve: Sequence[tuple[datetime, float]]) -> float:
+    """Adjusted sample skewness of the curve's per-period returns."""
+    return sample_skewness(equity_returns(curve))
+
+
+def return_excess_kurtosis(curve: Sequence[tuple[datetime, float]]) -> float:
+    """Unbiased excess kurtosis of the curve's per-period returns (normal = 0)."""
+    return sample_excess_kurtosis(equity_returns(curve))
+
+
+def ulcer_index(curve: Sequence[tuple[datetime, float]]) -> float:
+    """Root-mean-square percentage drawdown, in percentage points.
+
+    Unlike maximum drawdown it accounts for depth *and* duration, so a curve
+    that sits 10% underwater for a year scores worse than one that touches the
+    same depth and recovers immediately.
+    """
+    values = _values(curve)
+    if not values:
+        return 0.0
+    peak = values[0]
+    squared: list[float] = []
+    for value in values:
+        peak = max(peak, value)
+        drawdown_pct = (value / peak - 1.0) * 100.0 if peak > 0 else 0.0
+        squared.append(drawdown_pct * drawdown_pct)
+    return sqrt(sum(squared) / len(squared))
+
+
+def recovery_factor(curve: Sequence[tuple[datetime, float]]) -> float:
+    """Total return divided by the absolute maximum drawdown."""
+    drawdown = abs(max_drawdown(curve))
+    if drawdown == 0:
+        return 0.0
+    return total_return(curve) / drawdown
+
+
+def value_at_risk(
+    curve: Sequence[tuple[datetime, float]], *, confidence: float = 0.95
+) -> float:
+    """Historical one-period VaR as a positive loss fraction.
+
+    ``confidence=0.95`` means "the loss the portfolio is expected to exceed on
+    only 5% of periods". A non-negative number is returned so callers cannot
+    accidentally add a loss to equity.
+    """
+    if not 0.5 < confidence < 1.0:
+        raise ValueError("confidence must be in (0.5, 1.0)")
+    series_returns = equity_returns(curve)
+    if not series_returns:
+        return 0.0
+    losses = [-value for value in series_returns]
+    return max(0.0, quantile(losses, confidence))
+
+
+def conditional_value_at_risk(
+    curve: Sequence[tuple[datetime, float]], *, confidence: float = 0.95
+) -> float:
+    """Empirical expected shortfall as a positive loss fraction.
+
+    Uses the worst ``ceil((1 - confidence) * n)`` observations, matching the
+    discrete-tail convention in ``axel.portfolio.risk``.
+    """
+    if not 0.5 < confidence < 1.0:
+        raise ValueError("confidence must be in (0.5, 1.0)")
+    series_returns = equity_returns(curve)
+    if not series_returns:
+        return 0.0
+    ordered = sorted((-value for value in series_returns), reverse=True)
+    tail_count = max(1, ceil((1.0 - confidence) * len(ordered)))
+    tail = ordered[:tail_count]
+    return max(0.0, sum(tail) / len(tail))
+
+
 def summarize(
     curve: Sequence[tuple[datetime, float]],
     trades: Sequence[HasPnl],
@@ -214,9 +400,24 @@ def summarize(
         "sharpe": sharpe(curve, periods_per_year=periods_per_year),
         "sortino": sortino(curve, periods_per_year=periods_per_year),
         "max_drawdown": max_drawdown(curve),
+        "calmar": calmar(curve),
+        "omega": omega_ratio(curve, periods_per_year=periods_per_year),
+        "tail_ratio": tail_ratio(curve),
+        "downside_deviation": downside_deviation(
+            curve, periods_per_year=periods_per_year
+        ),
+        "ulcer_index": ulcer_index(curve),
+        "recovery_factor": recovery_factor(curve),
+        "var_95": value_at_risk(curve),
+        "cvar_95": conditional_value_at_risk(curve),
+        "skewness": return_skewness(curve),
+        "excess_kurtosis": return_excess_kurtosis(curve),
         "trades": float(len(trades)),
         "hit_rate": hit_rate(trades),
         "profit_factor": profit_factor(trades),
+        "average_win": average_win(trades),
+        "average_loss": average_loss(trades),
+        "payoff_ratio": payoff_ratio(trades),
         "expectancy_r": expectancy(trades),
         "elapsed_years": curve_years(curve),
         "observations_per_year": observations_per_year(
@@ -232,19 +433,32 @@ def summarize(
 __all__ = [
     "TRADING_DAYS",
     "HasPnl",
+    "average_loss",
+    "average_win",
     "cagr",
+    "calmar",
+    "conditional_value_at_risk",
     "curve_years",
+    "downside_deviation",
     "equity_returns",
     "expectancy",
     "expected_sessions",
     "hit_rate",
     "max_drawdown",
     "observations_per_year",
+    "omega_ratio",
+    "payoff_ratio",
     "profit_factor",
+    "recovery_factor",
+    "return_excess_kurtosis",
+    "return_skewness",
     "session_coverage",
     "sharpe",
     "sortino",
     "summarize",
+    "tail_ratio",
     "total_return",
+    "ulcer_index",
+    "value_at_risk",
     "volatility",
 ]

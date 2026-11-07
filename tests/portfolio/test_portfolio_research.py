@@ -138,6 +138,20 @@ def test_performance_metrics_use_net_returns_and_explicit_conventions() -> None:
         performance_metrics((-1.0,))
 
 
+def test_sortino_is_annualized_consistently_with_sharpe() -> None:
+    from math import sqrt
+    from statistics import mean
+
+    returns = (0.02, -0.01, 0.03, -0.02) * 10
+    metrics = performance_metrics(returns, periods_per_year=252.0)
+    downside = [min(value, 0.0) ** 2 for value in returns]
+    deviation = sqrt(sum(downside) / len(downside))
+    expected = mean(returns) / deviation * sqrt(252.0)
+    assert metrics.sortino == pytest.approx(expected)
+    # Guard against the previous unannualised implementation.
+    assert metrics.sortino != pytest.approx(expected / sqrt(252.0))
+
+
 def test_block_bootstrap_is_deterministic_and_reports_interval() -> None:
     values = tuple(0.001 * ((index % 9) - 4) for index in range(90))
     first = block_bootstrap_mean_ci(values, samples=300, block_size=5, seed=7)

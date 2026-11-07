@@ -36,7 +36,7 @@ from axel.portfolio.linalg import (
 from axel.portfolio.returns import covariance_diagnostics
 from axel.portfolio.risk import (
     RiskReport,
-    expected_shortfall,
+    historical_var,
     scenario_cvar,
 )
 from axel.portfolio.serialization import fingerprint
@@ -249,7 +249,9 @@ def _cvar_weights(
     )
     for iteration in range(1, config.max_iterations + 1):
         losses = [-dot(row, weights) for row in scenario_returns]
-        var = expected_shortfall(losses, config.confidence)
+        # The CVaR subgradient selects the tail at the VaR threshold; using
+        # expected shortfall here would exclude the VaR mass itself.
+        var = historical_var(losses, config.confidence)
         tail = [
             (row, probability)
             for row, probability, loss in zip(

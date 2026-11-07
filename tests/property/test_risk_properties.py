@@ -49,6 +49,11 @@ def test_risk_engine_invariants(
 
     stop = entry * (1.0 - stop_offset)
     target = entry * (1.0 + target_offset)
+    # The contract rounds confidence to two decimals, so the invariant must be
+    # checked against the value the risk engine actually receives. Comparing the
+    # raw draw (e.g. 0.296875) against a 0.30 threshold made this test fail for
+    # inputs that round up to the boundary.
+    rounded_confidence = round(confidence, 2)
 
     prop = Proposal(
         section=Section.STOCKS,
@@ -58,7 +63,7 @@ def test_risk_engine_invariants(
         stop=round(stop, 2),
         target=round(target, 2),
         strategy_id="hypo_test",
-        panel_confidence=round(confidence, 2),
+        panel_confidence=rounded_confidence,
         win_rate=round(win_rate, 2),
         avg_win_loss_ratio=round(avg_rr, 2),
         mode=TradingMode.PAPER,
@@ -95,7 +100,7 @@ def test_risk_engine_invariants(
         assert decision.verdict == RiskVerdict.HALTED
 
     # Invariant 4: Panel confidence below 0.30 absolute veto
-    if confidence < LIMITS.MIN_PANEL_CONFIDENCE:
+    if rounded_confidence < LIMITS.MIN_PANEL_CONFIDENCE:
         assert not decision.approved
 
     # Invariant 5: Max concurrent positions veto

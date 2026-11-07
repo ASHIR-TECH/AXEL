@@ -24,6 +24,8 @@ def test_bet_signal_recorded_under_predictions(in_memory_db):
 
     row = in_memory_db.query(SignalModel).filter_by(symbol="BET:4XK2Q9").one()
     assert row.section == "predictions"
+    assert result.quality is not None
+    assert 0.0 <= result.quality.overall <= 1.0
 
 
 def test_full_crypto_signal_runs_through_risk_engine(in_memory_db):
@@ -43,6 +45,10 @@ def test_full_crypto_signal_runs_through_risk_engine(in_memory_db):
 
     assert _count_signals(in_memory_db) == 1
     assert in_memory_db.query(SignalModel).filter_by(symbol="BTCUSDT").one().section == "crypto"
+    assert result.quality is not None
+    assert result.quality.completeness == 1.0
+    # Quality is advisory metadata: the risk-facing confidence is unchanged.
+    assert result.proposal.panel_confidence == result.parsed.confidence
 
 
 def test_incomplete_levels_recorded_not_proposed(in_memory_db):
@@ -54,6 +60,8 @@ def test_incomplete_levels_recorded_not_proposed(in_memory_db):
     assert result.proposal is None
     assert "incomplete or invalid" in result.reason
     assert _count_signals(in_memory_db) == 1
+    assert result.quality is not None
+    assert result.quality.completeness < 1.0
 
 
 def test_low_confidence_trade_recorded_not_proposed(in_memory_db):
@@ -74,6 +82,8 @@ def test_forex_signal_recorded_not_proposed(in_memory_db):
     assert result.proposal is None
     assert "forex" in result.reason
     assert in_memory_db.query(SignalModel).filter_by(symbol="EURUSD").one().section in ("stocks", "crypto")
+    assert result.quality is not None
+    assert 0.0 <= result.quality.overall <= 1.0
 
 
 def test_noise_is_dropped_without_persistence(in_memory_db):

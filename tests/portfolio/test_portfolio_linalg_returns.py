@@ -126,6 +126,43 @@ def test_ewma_and_shrinkage_stay_psd() -> None:
     assert shrunk.shrinkage == pytest.approx(0.25)
 
 
+def test_ewma_covariance_weights_the_newest_observation_most() -> None:
+    from axel.portfolio.returns import ReturnPanel
+
+    timestamps = tuple(NOW + timedelta(days=index) for index in range(3))
+    panel = ReturnPanel(
+        instrument_ids=("a",),
+        timestamps=timestamps,
+        returns={"a": (0.0, 0.0, 0.10)},
+        coverage={"a": 1.0},
+    )
+    result = ewma_covariance(panel, decay=0.5)
+
+    # Newest observation first in the weighting: 1.0, 0.5, 0.25 before
+    # normalization (oldest last).
+    raw = [0.25, 0.5, 1.0]
+    total = sum(raw)
+    weights = [value / total for value in raw]
+    observations = [0.0, 0.0, 0.10]
+    weighted_mean = sum(weight * value for weight, value in zip(weights, observations, strict=True))
+    expected = sum(
+        weight * (value - weighted_mean) ** 2
+        for weight, value in zip(weights, observations, strict=True)
+    )
+    assert result.covariance[0][0] == pytest.approx(expected, rel=1e-12)
+
+    # Reversing the weights (the old bug) produces a different, smaller estimate.
+    reversed_weights = [value / total for value in reversed(raw)]
+    reversed_mean = sum(
+        weight * value for weight, value in zip(reversed_weights, observations, strict=True)
+    )
+    reversed_estimate = sum(
+        weight * (value - reversed_mean) ** 2
+        for weight, value in zip(reversed_weights, observations, strict=True)
+    )
+    assert result.covariance[0][0] > reversed_estimate
+
+
 def test_covariance_diagnostics_reject_asymmetric_matrix() -> None:
     diagnostics = covariance_diagnostics([[1.0, 0.2], [0.1, 1.0]])
     assert not diagnostics.is_valid

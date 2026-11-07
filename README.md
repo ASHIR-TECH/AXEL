@@ -447,6 +447,28 @@ Fixed, pre-committed thresholds (chosen *before* looking at results — threshol
 - Recovery drill passed: kill process mid-order, restart, state reconciles
 - Explicit manual sign-off — start small, per-trade human approval first
 
+### 8.5 Research diagnostics adapted from reference repositories
+
+The reference repos under `repos/` also contributed a set of small, pure, read-only
+diagnostics. None of them changes the trust boundary: they are research metadata,
+not execution paths, and they are not imported by the deterministic risk or
+execution packages.
+
+| Capability | Module | Source idea | Guarantee |
+|---|---|---|---|
+| Signal quality scoring | `axel/signals/quality.py` | AI-Trader heuristic scorer | Advisory sub-scores only; never mutates a proposal or places an order. |
+| Odds conversions and CLV | `axel/bets/odds.py` | Sportsbook / prediction-market tooling | Decimal/American/fractional round-trips and closing-line value, all validated. |
+| Calibration diagnostics | `axel/bets/calibration.py` | AI-Trader research tooling | Reliability curve with Wilson intervals, ECE/MCE, Brier skill score. |
+| Event study | `axel/research/event_study.py` | ai-hedge-fund event study | Pure-stdlib market model, abnormal returns, CAR, t-test and bootstrap CI. |
+| Turbulence index | `axel/risk/turbulence.py` | FinRL turbulence | Mahalanobis distance diagnostic; no sizing or order decisions. |
+| Hierarchical risk parity | `axel/portfolio/hrp.py` | Sunday Quant Scientist HRP | Long-only, fully invested allocation proposal; risk gates still decide execution. |
+| Equal risk contribution | `axel/portfolio/risk_parity.py` | Sunday Quant Scientist risk parity | Convex ERC solver; long-only, fully invested proposal. |
+| Decision memory | `axel/agents/memory.py` | TradingAgents reflection log | Append-only, idempotent JSONL with point-in-time filtering for backtests. |
+| Provider retry policy | `axel/data/providers/retry.py` | AI-Trader price fetcher | Deterministic backoff planning; performs no I/O and never sleeps. |
+| Review projections | `axel/dashboard/review.py` | stock-portfolio-manager review view | Read-only QTD/quarter/YTD/1Y summaries; no database writes. |
+| Technical and microstructure features | `axel/data/features/` | Sunday Quant Scientist, polymarket LP tooling | Point-in-time indicators, depth imbalance, microprice and trade-flow features. |
+| Volatility estimators | `axel/data/features/volatility.py` | Sunday Quant Scientist / ML-for-trading | Realized, Parkinson, Garman-Klass, Rogers-Satchell, Yang-Zhang and EWMA, all point-in-time. |
+
 ---
 
 ## 9. Sections

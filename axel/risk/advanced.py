@@ -134,7 +134,11 @@ def garch_forecast(
 ) -> list[float]:
     """Forecast future conditional variance over k steps ahead.
 
-    E[sigma_{t+k}^2] = V_L + (alpha + beta)^k * (sigma_t^2 - V_L)
+    ``last_variance`` is the *current* filtered variance ``sigma_t^2`` (for
+    example the final value from :func:`garch_variance`), so the first
+    returned element is the one-step forecast ``sigma_{t+1}^2``:
+
+        E[sigma_{t+k}^2] = V_L + (alpha + beta)^k * (sigma_t^2 - V_L)
     """
     if horizon <= 0:
         return []

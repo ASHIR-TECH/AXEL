@@ -23,9 +23,17 @@ def sharpe_ratio_stderr(sharpe: float, n: int, skew: float = 0.0, kurtosis: floa
     """Standard error of the Sharpe ratio estimator with skewness and kurtosis correction."""
     if n <= 1:
         return float("inf")
-    var = (1.0 + 0.5 * sharpe * sharpe - skew * sharpe + (kurtosis - 3.0) / 4.0 * sharpe * sharpe) / n
+    # Bailey & Lopez de Prado use the sample-size correction (n - 1) for the
+    # variance of the Sharpe estimator; this matches the canonical
+    # ``axel.validation.deflated_sharpe`` implementation.
+    var = (
+        1.0
+        + 0.5 * sharpe * sharpe
+        - skew * sharpe
+        + (kurtosis - 3.0) / 4.0 * sharpe * sharpe
+    ) / (n - 1)
     if var < 0:
-        var = (1.0 + 0.5 * sharpe * sharpe) / n
+        var = (1.0 + 0.5 * sharpe * sharpe) / (n - 1)
     return math.sqrt(var)
 
 
@@ -61,7 +69,10 @@ def deflated_sharpe_ratio(
     """
     if n <= 1 or num_trials < 1:
         return 0.0
-    std_sharpe = math.sqrt(variance_of_sr) if variance_of_sr > 0 else 1.0
+    # Zero trial variance means every trial has the same Sharpe, so the
+    # expected maximum is the null mean (zero) and the benchmark must not be
+    # inflated by an arbitrary unit standard deviation.
+    std_sharpe = math.sqrt(variance_of_sr) if variance_of_sr > 0 else 0.0
     sr0 = expected_max_sharpe(num_trials, mean_sharpe=0.0, std_sharpe=std_sharpe)
     return probabilistic_sharpe_ratio(observed_sharpe, sr0, n, skew=skew, kurtosis=kurtosis)
 

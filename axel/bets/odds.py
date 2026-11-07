@@ -10,6 +10,8 @@ a single "correct" probability.
 
 from __future__ import annotations
 
+import math
+from fractions import Fraction
 from typing import Any
 
 
@@ -58,40 +60,36 @@ def shin_probabilities(
         # No overround — raw probs already sum to <= 1, return normalized.
         return proportional_normalization(decimal_odds)
 
-    # Shin's method: find mu such that sum(q_i / (1 + mu * (q_i / p_i - 1))) ... 
-    # Simplified: iterate on the Shin mu parameter.
-    # p_i = q_i / (1 + mu) ... we solve sum(p_i) = 1
-    # Using the common formulation: p_i proportional to q_i^z for z in (0,1)
-    # where z is chosen so sum(p_i) = 1.
+    # Shin (1993) de-vig.  With booksum-normalized implied probabilities
+    # ``q_i / Q`` and insider proportion ``z``, the fair probabilities are
+    #
+    #   p_i(z) = (sqrt(z^2 + 4 (1 - z) q_i^2 / Q) - z) / (2 (1 - z)).
+    #
+    # ``z`` is the fraction of informed bettors and is solved so that the
+    # ``p_i`` sum to one.  At ``z = 0`` the sum is ``sqrt(Q) > 1``; as
+    # ``z -> 1`` it falls below one, so the root is unique and can be found
+    # by bisection.
+    def _shin_probs(z: float) -> list[float]:
+        denominator = 2.0 * (1.0 - z)
+        return [
+            (math.sqrt(z * z + 4.0 * (1.0 - z) * q * q / q_sum) - z) / denominator
+            for q in raw_probs
+        ]
 
-    def _power_probs(z: float) -> list[float]:
-        weighted = [q ** z for q in raw_probs]
-        total = sum(weighted)
-        if total <= 0:
-            return [1.0 / n] * n
-        return [w / total for w in weighted]
-
-    # Binary search on z in [0, 1]
-    lo, hi = 0.0, 1.0
-    z = 0.5
-    converged = False
+    lo, hi = 0.0, 1.0 - 1e-12
     for _ in range(max_iterations):
-        z = (lo + hi) / 2.0
-        p = _power_probs(z)
-        total = sum(p)
+        mid = (lo + hi) / 2.0
+        probabilities = _shin_probs(mid)
+        total = sum(probabilities)
         if abs(total - 1.0) < tolerance:
-            converged = True
-            break
-        if total < 1.0:
-            hi = z
+            return probabilities
+        if total > 1.0:
+            lo = mid
         else:
-            lo = z
+            hi = mid
 
-    if not converged:
-        # Fall back to proportional normalization
-        return proportional_normalization(decimal_odds)
-
-    return _power_probs(z)
+    # Fall back to proportional normalization if the solver does not converge.
+    return proportional_normalization(decimal_odds)
 
 
 def decimal_from_probability(p: float) -> float:
@@ -120,6 +118,56 @@ def fractional_to_decimal(numerator: float, denominator: float) -> float:
     if denominator <= 0:
         raise ValueError(f"denominator must be positive, got {denominator}")
     return 1.0 + numerator / denominator
+
+
+def decimal_to_american(decimal_odds: float) -> float:
+    """Convert decimal odds to American odds (+100 / -100 convention)."""
+    if decimal_odds <= 1.0:
+        raise ValueError(f"decimal_odds must be > 1.0, got {decimal_odds}")
+    net = decimal_odds - 1.0
+    if net >= 1.0:
+        return net * 100.0
+    return -100.0 / net
+
+
+def decimal_to_fractional(
+    decimal_odds: float,
+    *,
+    max_denominator: int = 100,
+) -> tuple[int, int]:
+    """Convert decimal odds to the nearest fractional odds (numerator, denominator)."""
+    if decimal_odds <= 1.0:
+        raise ValueError(f"decimal_odds must be > 1.0, got {decimal_odds}")
+    if max_denominator <= 0:
+        raise ValueError(f"max_denominator must be positive, got {max_denominator}")
+    fraction = Fraction(decimal_odds - 1.0).limit_denominator(max_denominator)
+    return fraction.numerator, fraction.denominator
+
+
+def implied_probability_from_odds(odds: dict[str, Any]) -> float | None:
+    """Raw implied probability from a provider odds dict, or None if unparseable."""
+    decimal_odds = normalize_odds_dict(odds)
+    if decimal_odds is None or decimal_odds <= 0:
+        return None
+    return implied_probability(decimal_odds)
+
+
+def closing_line_value(taken_decimal: float, closing_decimal: float) -> float:
+    """Closing Line Value: relative price edge of the taken odds versus the close.
+
+    ``(taken / closing) - 1``. Positive means the bet was struck at a better
+    price than the closing line, which is the standard CLV proxy for edge.
+    """
+    if taken_decimal <= 1.0:
+        raise ValueError(f"taken_decimal must be > 1.0, got {taken_decimal}")
+    if closing_decimal <= 1.0:
+        raise ValueError(f"closing_decimal must be > 1.0, got {closing_decimal}")
+    return taken_decimal / closing_decimal - 1.0
+
+
+def closing_line_value_bps(taken_decimal: float, closing_decimal: float) -> float:
+    """Closing Line Value in basis points."""
+    return closing_line_value(taken_decimal, closing_decimal) * 10_000.0
 
 
 def normalize_odds_dict(

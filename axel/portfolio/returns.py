@@ -294,7 +294,10 @@ def ewma_covariance(
         panel, instrument_ids, min_observations=min_observations
     )
     observations = len(rows)
-    raw_weights = [decay**index for index in range(observations)]
+    # Rows are chronological (oldest first), so the newest observation must
+    # receive the largest weight. Using ``decay**index`` here would do the
+    # opposite and let stale data dominate the estimate.
+    raw_weights = [decay ** (observations - 1 - index) for index in range(observations)]
     total_weight = sum(raw_weights)
     weights = [value / total_weight for value in raw_weights]
     width = len(selected)

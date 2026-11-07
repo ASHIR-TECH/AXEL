@@ -48,6 +48,14 @@ from axel.risk.tail import (
     marginal_var,
     stress_loss,
 )
+from axel.risk.turbulence import (
+    covariance_matrix,
+    invert_matrix,
+    is_turbulent,
+    mean_vector,
+    rolling_turbulence,
+    turbulence_index,
+)
 
 __all__ = [
     "DEFAULT_ADVANCED_SCENARIOS",
@@ -82,6 +90,7 @@ __all__ = [
     "StressScenarioType",
     "TailRiskEngine",
     "TailRiskReport",
+    "covariance_matrix",
     "detect_correlation_breakdown",
     "evaluate_scenario_stress",
     "ewma_variance",
@@ -90,8 +99,13 @@ __all__ = [
     "garch_forecast",
     "garch_variance",
     "historical_var",
+    "invert_matrix",
+    "is_turbulent",
     "marginal_var",
+    "mean_vector",
     "rolling_correlation",
+    "rolling_turbulence",
     "stress_correlation_matrix",
     "stress_loss",
+    "turbulence_index",
 ]

@@ -338,6 +338,22 @@ The annualisation factor must match the observation frequency.
 
 Do not use a daily annualisation factor for hourly observations.
 
+### Sortino ratio
+
+The annualised Sortino Ratio is:
+
+    Sortino = sqrt(A) * mean(r - target) / DD
+
+Where the downside deviation is:
+
+    DD = sqrt( (1/N) * sum_i(min(r_i - target, 0)^2) )
+
+The downside deviation is the root-mean-square shortfall over the
+full sample of N observations, not the average shortfall over only
+the observations that fell below the target. The numerator and
+denominator must use the same per-period target and the same
+annualisation factor as the Sharpe Ratio.
+
 ## 3.2 Maximum drawdown
 
 Define the running peak:
@@ -405,6 +421,36 @@ from multiple trials.
 
 The implementation should use the full statistical procedure
 from the selected reference, not an improvised formula.
+
+The Probabilistic Sharpe Ratio (PSR) is:
+
+    PSR = Phi( (SR - SR_benchmark) * sqrt(n - 1)
+               / sqrt(1 - skew*SR + ((kurtosis - 1)/4)*SR^2) )
+
+Where:
+
+- SR = observed per-period Sharpe ratio.
+- n = number of return observations.
+- skew = skewness of the return distribution.
+- kurtosis = raw kurtosis of the return distribution
+  (3.0 for a normal distribution).
+- Phi = standard normal cumulative distribution function.
+
+The numerator and denominator must use the same units: pass the
+per-period Sharpe ratio, never an annualised Sharpe ratio.
+
+The deflated benchmark is the expected maximum Sharpe across T
+independent trials:
+
+    SR_benchmark = sqrt(Var(SR)) *
+        [ (1 - gamma) * Phi^{-1}(1 - 1/T)
+          + gamma * Phi^{-1}(1 - 1/(T*e)) ]
+
+Where gamma is the Euler-Mascheroni constant (approximately
+0.5772) and Var(SR) is the cross-trial variance of the Sharpe
+estimates. If Var(SR) is zero, the benchmark is zero rather than
+an arbitrary default. The sample correction is (n - 1), matching
+the reference procedure.
 
 Record:
 
@@ -636,15 +682,15 @@ Required fields:
 
 European call:
 
-    C = S*N(d1) - K*exp(-rT)*N(d2)
+    C = S*exp(-qT)*N(d1) - K*exp(-rT)*N(d2)
 
 European put:
 
-    P = K*exp(-rT)*N(-d2) - S*N(-d1)
+    P = K*exp(-rT)*N(-d2) - S*exp(-qT)*N(-d1)
 
 Where:
 
-    d1 = [ln(S/K) + (r + sigma^2/2)*T] / (sigma*sqrt(T))
+    d1 = [ln(S/K) + (r - q + sigma^2/2)*T] / (sigma*sqrt(T))
 
     d2 = d1 - sigma*sqrt(T)
 
@@ -653,9 +699,17 @@ Variables:
 - S = underlying price
 - K = strike
 - r = continuously compounded risk-free rate
+- q = continuously compounded dividend yield
 - T = time to expiry in years
 - sigma = annualised volatility
 - N = standard normal cumulative distribution function
+
+As sigma approaches zero the price must approach the discounted
+forward intrinsic value, not the undiscounted spot intrinsic:
+
+    Call: max(S*exp(-qT) - K*exp(-rT), 0)
+
+    Put:  max(K*exp(-rT) - S*exp(-qT), 0)
 
 Use the model as a baseline, not as a universal pricing truth.
 
@@ -847,9 +901,22 @@ using a documented method.
 
 Simple normalisation:
 
-    p_i = (1/o_i) / sum_j(1/o_j)
+    q_i = 1 / o_i
+
+    p_i = q_i / Q, where Q = sum_j(q_j)
 
 This is one approximation, not a universal margin-removal method.
+
+A favourite-longshot-aware alternative is the Shin (1993) de-vig.
+With Q = sum_j(q_j) and insider proportion z:
+
+    p_i(z) = (sqrt(z^2 + 4*(1 - z)*q_i^2 / Q) - z) / (2*(1 - z))
+
+The value z is solved so that the p_i sum to one. Shin moves
+probability mass away from longshots and toward favourites, so it
+differs from proportional normalisation whenever the book has a
+margin. It is a model assumption, not a universal truth, and the
+raw odds must be preserved alongside it.
 
 ## 7.7 Settlement
 

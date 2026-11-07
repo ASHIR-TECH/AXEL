@@ -48,15 +48,31 @@ def test_black_scholes_put_call_parity():
     assert abs(lhs - rhs) < 1e-6
 
 
-def test_black_scholes_intrinsic_at_zero_vol():
+def test_black_scholes_zero_vol_uses_discounted_forward_intrinsic():
+    # With zero volatility the call is worth the discounted forward payoff,
+    # not the undiscounted spot intrinsic: max(S - K * e^{-rT}, 0).
     price, greeks = black_scholes_price(_inputs(volatility=0.0))
-    assert price == max(100.0 - 100.0, 0.0)  # ATM -> 0 intrinsic
+    expected = max(100.0 - 100.0 * math.exp(-0.05), 0.0)
+    assert price == pytest.approx(expected)
+    assert greeks.delta == pytest.approx(1.0)
     assert greeks.vega == 0.0
 
     deep_itm = black_scholes_price(
         _inputs(volatility=0.0, strike=50.0, option_right=OptionRight.CALL)
     )
-    assert deep_itm[0] == 50.0  # S - K
+    assert deep_itm[0] == pytest.approx(100.0 - 50.0 * math.exp(-0.05))
+
+    put = black_scholes_price(
+        _inputs(volatility=0.0, strike=120.0, option_right=OptionRight.PUT)
+    )
+    assert put[0] == pytest.approx(120.0 * math.exp(-0.05) - 100.0)
+    assert put[1].delta == pytest.approx(-1.0)
+
+
+def test_black_scholes_zero_vol_put_call_parity_holds():
+    call, _ = black_scholes_price(_inputs(volatility=0.0))
+    put, _ = black_scholes_price(_inputs(volatility=0.0, option_right=OptionRight.PUT))
+    assert call - put == pytest.approx(100.0 - 100.0 * math.exp(-0.05))
 
 
 def test_iv_solver_recovers_input_vol():

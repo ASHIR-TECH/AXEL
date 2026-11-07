@@ -26,9 +26,24 @@ from axel.data.providers.fred import FredData, parse_observations
 from axel.data.providers.kalshi import KalshiPredictionMarketData
 from axel.data.providers.news import GdeltNews, parse_news
 from axel.data.providers.oanda import OandaMarketData
+from axel.data.providers.retry import (
+    DEFAULT_RETRY_POLICY,
+    DEFAULT_RETRYABLE_STATUS_CODES,
+    RetryDecision,
+    RetryPolicy,
+    backoff_schedule,
+    delay_for_attempt,
+    is_retryable_exception,
+    is_retryable_status,
+    parse_retry_after,
+    plan_retry,
+    retryable_statuses,
+)
 from axel.data.providers.sec import SecEdgar, parse_filings
 
 __all__ = [
+    "DEFAULT_RETRYABLE_STATUS_CODES",
+    "DEFAULT_RETRY_POLICY",
     "AlpacaMarketData",
     "BinancePublicMarketData",
     "Capability",
@@ -46,11 +61,20 @@ __all__ = [
     "ProviderHealth",
     "ProviderRequestError",
     "ProviderResult",
+    "RetryDecision",
+    "RetryPolicy",
     "SecEdgar",
+    "backoff_schedule",
+    "delay_for_attempt",
+    "is_retryable_exception",
+    "is_retryable_status",
     "now_utc",
     "parse_bars",
     "parse_filings",
     "parse_news",
     "parse_observations",
+    "parse_retry_after",
+    "plan_retry",
     "require_api_key",
+    "retryable_statuses",
 ]

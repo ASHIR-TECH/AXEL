@@ -1,5 +1,8 @@
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from math import sqrt
+
+import pytest
 
 from axel.data.ml import NO_SLIPPAGE, US_EQUITY_CALENDAR, Backtester, CostModel
 from axel.data.schemas import BarRecord, Provenance
@@ -86,6 +89,31 @@ def test_report_contains_walk_forward_robustness_and_admission() -> None:
     assert report.admission["admitted"] in (True, False)
     assert report.trades == int(report.full_metrics["trades"])
     assert report.full_metrics["total_return"] > 0
+
+
+def test_report_deannualizes_sharpe_before_deflating(monkeypatch) -> None:
+    import axel.validation.report as report_module
+
+    captured: dict[str, object] = {}
+    real = report_module.deflated_sharpe_ratio
+
+    def spy(observed_sr, **kwargs):
+        captured["observed_sr"] = observed_sr
+        captured.update(kwargs)
+        return real(observed_sr, **kwargs)
+
+    monkeypatch.setattr(report_module, "deflated_sharpe_ratio", spy)
+    report = _build(_rising_bars())
+
+    annualisation = report.full_metrics["observations_per_year"]
+    assert annualisation != pytest.approx(1.0)
+    expected = report.full_metrics["sharpe"] / sqrt(annualisation)
+    assert captured["observed_sr"] == pytest.approx(expected)
+    # Higher moments are passed through: raw kurtosis = excess + 3.
+    assert captured["skew"] == pytest.approx(report.full_metrics["skewness"])
+    assert captured["kurtosis"] == pytest.approx(
+        report.full_metrics["excess_kurtosis"] + 3.0
+    )
 
 
 def test_report_does_not_depend_on_bar_object_identity() -> None:

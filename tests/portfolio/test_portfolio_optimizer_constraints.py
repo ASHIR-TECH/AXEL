@@ -111,6 +111,25 @@ def test_minimum_variance_improves_on_equal_weight() -> None:
     assert comparison.volatility_difference < 0
 
 
+def test_cvar_tail_uses_value_at_risk_threshold(monkeypatch) -> None:
+    import axel.portfolio.optimizer as optimizer_module
+
+    # If the tail were selected with expected shortfall this sentinel would
+    # not be consulted and the solver would take a gradient step instead.
+    monkeypatch.setattr(
+        optimizer_module, "historical_var", lambda losses, confidence: float("inf")
+    )
+    config = OptimizationConfig(method=OptimizationMethod.CVAR, confidence=0.8)
+    _, weights, message, _ = optimizer_module._cvar_weights(
+        [[0.01, -0.01], [-0.02, 0.02]],
+        [0.5, 0.5],
+        config,
+        [0.5, 0.5],
+    )
+    assert message == "empty CVaR tail"
+    assert weights == pytest.approx((0.5, 0.5))
+
+
 def test_optimizer_returns_typed_failure_not_empty_allocation() -> None:
     stale = make_snapshot(statuses=())
     exposure = make_exposure(stale)

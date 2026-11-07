@@ -8,6 +8,16 @@ deterministic services. LLMs create proposals/commentary only — they never
 place bets or alter risk settings.
 """
 
+from axel.bets.calibration import (
+    ReliabilityBin,
+    brier_score,
+    brier_skill_score,
+    calibration_report,
+    expected_calibration_error,
+    maximum_calibration_error,
+    reliability_curve,
+    wilson_interval,
+)
 from axel.bets.contracts import (
     BetFill,
     BetOrder,
@@ -15,7 +25,12 @@ from axel.bets.contracts import (
     ValueAssessment,
 )
 from axel.bets.odds import (
+    closing_line_value,
+    closing_line_value_bps,
+    decimal_to_american,
+    decimal_to_fractional,
     implied_probability,
+    implied_probability_from_odds,
     overround,
     proportional_normalization,
     shin_probabilities,
@@ -65,17 +80,30 @@ __all__ = [
     "OddsFormat",
     "OddsSnapshot",
     "OutcomeType",
+    "ReliabilityBin",
     "SettlementOutcome",
     "ValidationResult",
     "ValueAssessment",
+    "brier_score",
+    "brier_skill_score",
+    "calibration_report",
+    "closing_line_value",
+    "closing_line_value_bps",
     "compute_payout",
     "conservative_ev",
+    "decimal_to_american",
+    "decimal_to_fractional",
+    "expected_calibration_error",
     "expected_value",
     "flat_stake",
     "fractional_kelly",
     "implied_probability",
+    "implied_probability_from_odds",
+    "maximum_calibration_error",
     "overround",
     "proportional_normalization",
+    "reliability_curve",
     "shin_probabilities",
     "validate_bet_proposal",
+    "wilson_interval",
 ]
