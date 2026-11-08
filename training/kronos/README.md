@@ -75,6 +75,11 @@ The dataset for this handoff is already generated at `data/kronos/bars.csv`:
 | Range | 2020-07-27 → 2026-11-06 |
 | Timestamps | 1,580 |
 | Duplicates / zero volume | 0 / 0 |
+| Adjustment | split-adjusted (`adjustment=split`) |
+
+Prices are split-adjusted, so NVDA's 10:1 split and the other 2020–2022 splits
+do not appear as artificial gaps. Dividends are not adjusted; the largest
+remaining daily moves are real earnings events.
 
 Alpaca's free IEX feed has daily history from **2020-07-27** and intraday
 history from **2023**. Use daily bars: Kronos's Qlib fine-tune path is built

@@ -131,6 +131,8 @@ Rules:
 - Prices positive, `low <= high`, `volume >= 0`.
 - One row per `(symbol, timestamp, timeframe)`.
 - Sorted by `(symbol, timestamp)`.
+- **Split-adjusted prices.** The fetch script defaults to `--adjustment split`;
+  raw prices across 2020–2026 contain 10:1 and 20:1 split jumps.
 - **No look-ahead.** A feature at decision time `t` may only use data with
   `available_at <= t`.
 
