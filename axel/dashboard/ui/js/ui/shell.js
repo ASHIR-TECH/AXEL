@@ -58,9 +58,17 @@ setInterval(() => { $("#lamp-agent").className = "dot " + (Math.random()<.3 ? "w
 /* ══════════ FKEYS / SHORTCUTS ══════════ */
 $$(".fkey").forEach(k => k.addEventListener("click", () => {
   const a = k.dataset.action;
-  if (a === "halt-drill") runDrill();
+  if (a === "halt-drill") {
+    // A local drill must never fake a backend kill-switch event.
+    if (window.AXEL_LIVE) { alert("Kill drill is disabled against the live backend. Use the operator runbook."); return; }
+    runDrill();
+  }
   if (a === "pause") setPaused();
-  if (a === "resume") { resume(); setPaused(false); }
+  if (a === "resume") {
+    // Resume is an authenticated operator action in live mode.
+    if (window.AXEL_LIVE) { alert("Resume is a manual operator action against the live backend."); return; }
+    resume(); setPaused(false);
+  }
   if (a === "speed") { S.speed = S.speed >= 4 ? 1 : S.speed*2; setSpeed(S.speed); $("#speed-val").textContent = S.speed; }
 }));
 addEventListener("keydown", e => {

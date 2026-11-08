@@ -60,14 +60,115 @@ services:
       timeout: 5s
       retries: 3
 
-  dashboard:
-    image: nginx:1.27-alpine
+  # One-shot schema creation. The repository has no Alembic revisions yet, so
+  # first boot uses SQLAlchemy metadata. Replace this with `alembic upgrade head`
+  # once the initial revision is generated.
+  migrate:
+    build: .
+    container_name: axel-migrate
+    restart: "no"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://axel:${POSTGRES_PASSWORD:-axelpass}@timescaledb:5432/${POSTGRES_DB:-axel}
+      ENVIRONMENT: paper
+      ALPACA_PAPER: "true"
+      LIVE_TRADING_CONFIRMED: "false"
+    command: ["python", "-c", "from axel.db.session import init_db; init_db()"]
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+
+  # Read-only dashboard API + SSE. Serves the unchanged terminal UI at /.
+  api:
+    build: .
+    container_name: axel-api
     restart: unless-stopped
-    profiles: ["paper"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://axel:${POSTGRES_PASSWORD:-axelpass}@timescaledb:5432/${POSTGRES_DB:-axel}
+      ENVIRONMENT: paper
+      ALPACA_PAPER: "true"
+      LIVE_TRADING_CONFIRMED: "false"
+      DASHBOARD_CORS_ORIGINS: ${DASHBOARD_CORS_ORIGINS:-*}
+      LOG_FILE: ""
+    command: ["python", "scripts/run_dashboard_api.py", "--host", "0.0.0.0", "--port", "8000"]
     ports:
-      - "${AXEL_DASHBOARD_PORT:-8080}:80"
+      - "127.0.0.1:${AXEL_API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # Deterministic paper workers. They share the database and never call an LLM.
+  ingest-worker:
+    build: .
+    container_name: axel-ingest-worker
+    restart: unless-stopped
+    env_file: .env
+    environment: &paper-worker-env
+      DATABASE_URL: postgresql+psycopg://axel:${POSTGRES_PASSWORD:-axelpass}@timescaledb:5432/${POSTGRES_DB:-axel}
+      ENVIRONMENT: paper
+      ALPACA_PAPER: "true"
+      LIVE_TRADING_CONFIRMED: "false"
+      PAPER_RUNTIME_INTERVAL_SECONDS: ${PAPER_RUNTIME_INTERVAL_SECONDS:-5}
+      PAPER_RUNTIME_SEED: ${PAPER_RUNTIME_SEED:-7}
+      KILLSWITCH_STATE_FILE: /app/state/.axel_killswitch.json
+      HALT_STATE_FILE: /app/state/.axel_halt.json
+      LOG_FILE: ""
+    command: ["python", "scripts/run_ingest_worker.py"]
     volumes:
-      - ./axel/dashboard/ui:/usr/share/nginx/html:ro
+      - axel_state:/app/state
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  agent-worker:
+    build: .
+    container_name: axel-agent-worker
+    restart: unless-stopped
+    env_file: .env
+    environment: *paper-worker-env
+    command: ["python", "scripts/run_agent_worker.py"]
+    volumes:
+      - axel_state:/app/state
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  core-worker:
+    build: .
+    container_name: axel-core-worker
+    restart: unless-stopped
+    env_file: .env
+    environment: *paper-worker-env
+    command: ["python", "scripts/run_core_worker.py"]
+    volumes:
+      - axel_state:/app/state
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # TLS termination and the only public entry point.
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: axel-caddy
+    restart: unless-stopped
+    environment:
+      AXEL_SITE_ADDRESS: ${AXEL_SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
 
   # ── Monitoring stack ──────────────────────────────────────────────────────
   # Read-only exporter. It snapshots durable state per scrape and never writes
@@ -186,3 +287,5 @@ volumes:
   prometheus_data:
   alertmanager_data:
   grafana_data:
+  caddy_data:
+  caddy_config:

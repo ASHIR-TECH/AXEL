@@ -83,6 +83,22 @@ class AxelSettings(BaseSettings):
     max_position_pct: float = 0.05         # 5% max notional per trade
     max_per_trade_risk_pct: float = 0.01   # 1% risk-at-stop cap
 
+    # Live dashboard API. The API is read-only; mutations stay in the
+    # authenticated execution/approval services. Leave the token empty for
+    # local development and set it in production.
+    dashboard_api_token: SecretStr | None = None
+    dashboard_cors_origins: str = "*"
+    dashboard_poll_seconds: float = 1.0
+    dashboard_stream_heartbeat_seconds: float = 5.0
+    llm_monthly_budget_usd: float = 50.0
+
+    # Deterministic paper runtime. The workers only run when environment is
+    # "paper"; the seed makes synthetic bars reproducible across restarts.
+    paper_runtime_interval_seconds: float = 5.0
+    paper_runtime_seed: int = 7
+    paper_runtime_signal_ttl_seconds: int = 900
+    paper_runtime_proposal_cooldown_seconds: int = 30
+
     @model_validator(mode="after")
     def validate_safety_locks(self) -> "AxelSettings":
         """
