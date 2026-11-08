@@ -257,7 +257,7 @@ def _returns(values: list[float]) -> list[float]:
 def _latest_snapshot(session: Session, section: str) -> EquitySnapshotModel | None:
     stmt = (
         select(EquitySnapshotModel)
-        .where(func.upper(func.coalesce(EquitySnapshotModel.section, "")) == section.upper())
+        .where(func.upper(EquitySnapshotModel.section) == section.upper())
         .order_by(EquitySnapshotModel.timestamp.desc())
         .limit(1)
     )
@@ -267,7 +267,7 @@ def _latest_snapshot(session: Session, section: str) -> EquitySnapshotModel | No
 def _snapshot_series(session: Session, section: str, limit: int) -> list[EquitySnapshotModel]:
     stmt = (
         select(EquitySnapshotModel)
-        .where(func.upper(func.coalesce(EquitySnapshotModel.section, "")) == section.upper())
+        .where(func.upper(EquitySnapshotModel.section) == section.upper())
         .order_by(EquitySnapshotModel.timestamp.desc())
         .limit(limit)
     )
@@ -332,7 +332,7 @@ def _day_start_nav(session: Session, section: str) -> float | None:
     stmt = (
         select(EquitySnapshotModel)
         .where(
-            func.upper(func.coalesce(EquitySnapshotModel.section, "")) == section.upper(),
+            func.upper(EquitySnapshotModel.section) == section.upper(),
             EquitySnapshotModel.timestamp >= day_start,
         )
         .order_by(EquitySnapshotModel.timestamp.asc())
@@ -363,7 +363,7 @@ def _section_correlation(session: Session, section: str) -> float:
 
 def _position_count(session: Session, section: str) -> int:
     stmt = select(func.count()).select_from(PositionModel).where(
-        func.upper(func.coalesce(PositionModel.section, "")) == section.upper(),
+        func.upper(PositionModel.section) == section.upper(),
         PositionModel.qty > 0,
     )
     return int(session.execute(stmt).scalar_one())
