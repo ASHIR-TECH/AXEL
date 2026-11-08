@@ -4,8 +4,8 @@
 **Audience:** the person receiving AXEL to train or accelerate on a GPU  
 **Repo:** `ASHIR-TECH/AXEL`, branch to be created for this work
 
-This is the brief to hand over. Read §1 before starting: AXEL does not currently
-contain a training pipeline, so the scope has to be chosen explicitly.
+This is the brief to hand over. Read §1 before starting: the pipeline around the
+model is implemented, and the scope is fixed as **Scope A**.
 
 ---
 
@@ -47,11 +47,26 @@ gate in §5. Report either outcome honestly.
 
 ### 1.2 What already exists
 
-There is **no model training code in AXEL today**. Nothing in the repository
-imports `torch`, `sklearn`, `lightgbm` or `xgboost`. What exists is:
+The **data, fold, evaluation, artifact and adapter plumbing is implemented**.
+What is still missing is the GPU run itself: no checkpoint has been trained, and
+the repository still does not import `torch` at runtime. The implemented pieces
+are:
 
 | Path | What it actually is |
 |---|---|
+| `axel/data/export.py` | DB → `bars.csv` + `manifest.json` with a content hash. |
+| `axel/data/historical.py` | Provider-agnostic historical fetch (read-only). |
+| `axel/training/dataset.py` | Timestamp-axis walk-forward folds and an untouched holdout. |
+| `axel/training/evaluation.py` | Brier, MAE, directional accuracy, cost-adjusted Sharpe, admission gate, trend baseline. |
+| `axel/training/artifact.py` | `ModelArtifact` + `manifest.json` contract with model hash. |
+| `axel/agents/kronos.py` | Proposal-only `KronosForecastAnalyst` emitting `SignalModel` rows. |
+| `scripts/fetch_historical_bars.py` | Alpaca market data → CSV. |
+| `scripts/export_training_dataset.py` | AXEL DB → CSV + manifest. |
+| `scripts/prepare_training_folds.py` | CSV → folds + holdout + `folds.json`. |
+| `scripts/evaluate_forecasts.py` | `predictions.csv` → `report.json` + pass/fail. |
+| `scripts/build_model_artifact.py` | Checkpoint → `manifest.json`. |
+| `scripts/train_kronos.py` | Validates folds and emits/runs the Kronos commands. |
+| `training/kronos/README.md` | The exact runbook. |
 | `axel/data/backtester.py` | Deterministic, cost-aware trend baseline. CPU only. |
 | `axel/data/validation.py` | Admission thresholds for a backtest result. |
 | `axel/data/ml/` | Costs, slippage, calendars, corporate actions, splits, risk model, execution model. **Not** training. |
@@ -61,14 +76,15 @@ imports `torch`, `sklearn`, `lightgbm` or `xgboost`. What exists is:
 | `axel/agents/` | Proposal-only analyst layer and an OpenAI-compatible gateway. |
 | `axel/runtime/` | Deterministic paper runtime. No learning. |
 
-So "train AXEL on a GPU" is not a task that exists yet. Pick one scope from §2
-and deliver the artifact described in §4.
+The contract is one directory: `artifacts/<model_id>/<version>/` containing the
+checkpoint and `manifest.json`. See `training/kronos/README.md` for the exact
+sequence.
 
 ---
 
-## 2. Pick exactly one scope
+## 2. Scope (fixed: A)
 
-### Scope A — Kronos fine-tune + offline inference adapter (recommended)
+### Scope A — Kronos fine-tune + offline inference adapter (chosen)
 
 - Fine-tune Kronos (`https://github.com/shiyu-coder/Kronos`) on AXEL's historical
   bars.
@@ -118,33 +134,44 @@ Rules:
 
 ### How to source it
 
-Option 1, via AXEL's read-only Alpaca market-data client (needs a free paper
-account's market-data keys):
+Option 1, via AXEL's read-only Alpaca market-data client. The wrapper script
+does the fetch and writes the canonical CSV:
 
-```python
-from datetime import UTC, datetime
-from axel.data.providers.alpaca import AlpacaMarketData
-
-client = AlpacaMarketData(api_key="...", secret_key="...")
-result = client.fetch_bars(
-    "AAPL",
-    datetime(2023, 1, 1, tzinfo=UTC),
-    datetime(2025, 1, 1, tzinfo=UTC),
-    timeframe="1Hour",
-)
-bars = result.records
+```bash
+.venv/bin/python scripts/fetch_historical_bars.py \
+  --symbols AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH \
+  --start 2023-01-01T00:00:00+00:00 \
+  --end   2025-01-01T00:00:00+00:00 \
+  --timeframe 1Hour \
+  --out data/bars.csv
 ```
 
-Option 2, provide a CSV export from any vendor that matches the schema above.
+Option 2, export what is already in the AXEL database:
+
+```bash
+.venv/bin/python scripts/export_training_dataset.py \
+  --out data/dataset --timeframe 1Hour
+```
+
+Option 3, provide a CSV export from any vendor that matches the schema above.
 
 ### Split policy
 
 Use the existing code, do not invent a split:
 
-```python
-from axel.validation.walk_forward import walk_forward_folds
-folds = walk_forward_folds(n_periods, train_size=..., test_size=..., step=...)
+```bash
+.venv/bin/python scripts/prepare_training_folds.py \
+  --bars data/bars.csv \
+  --out  data/folds \
+  --train-size 2000 \
+  --test-size 500 \
+  --holdout-fraction 0.2
 ```
+
+Under the hood this calls
+`axel.validation.walk_forward.walk_forward_folds` on the shared timestamp axis,
+then writes `fold_NN/train.csv`, `fold_NN/test.csv`, an untouched holdout and
+`folds.json`.
 
 Report metrics only on folds the model never saw. If the model was tuned on the
 test window, the result is invalid.
@@ -162,34 +189,40 @@ artifacts/<model_id>/<version>/
   README.md             # exact reproduce command
 ```
 
-`manifest.json`:
+`manifest.json` (written by `scripts/build_model_artifact.py`):
 
 ```json
 {
+  "schema_version": "axel-model-artifact-1",
   "model_id": "kronos-mini",
   "version": "0.1.0",
   "task": "forecast",
-  "timeframe": "1h",
+  "section": "STOCKS",
+  "timeframe": "1Hour",
   "horizon_bars": 5,
   "universe": ["AAPL", "MSFT", "NVDA"],
-  "train_window": {"start": "2023-01-01T00:00:00Z", "end": "2024-06-30T00:00:00Z"},
-  "validation_window": {"start": "2024-07-01T00:00:00Z", "end": "2025-01-01T00:00:00Z"},
-  "features": ["open", "high", "low", "close", "volume"],
+  "train_window": ["2023-01-01T00:00:00+00:00", "2024-06-30T00:00:00+00:00"],
+  "validation_window": ["2024-07-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00"],
   "seed": 7,
-  "content_hash": "sha256:...",
+  "content_hash": "<sha256 of the model file>",
   "code_commit": "<git sha of the training code>",
+  "artifact_file": "model.pt",
+  "created_at": "2026-11-08T00:00:00+00:00",
   "metrics": {
     "brier": 0.0,
-    "mae_return": 0.0,
-    "sharpe_after_costs": 0.0,
+    "mae": 0.0,
+    "sharpe": 0.0,
     "max_drawdown": 0.0
   }
 }
 ```
 
+`axel/training/artifact.py` is the single source of truth for this schema; do not
+hand-write a variant.
+
 ### 4.2 Inference adapter
 
-Lives in `axel/agents/`. It must:
+Implemented in `axel/agents/kronos.py`. You only supply a `Predictor`. It:
 
 - Load the artifact read-only.
 - Emit `SignalModel` rows with:
@@ -279,7 +312,8 @@ Complete these today; the GPU work is blocked without them.
    - Python 3.11+
    - CUDA-compatible GPU and driver
    - `pip install -e '.[dev]'`
-   - `pip install torch` (or the Kronos repo's own requirements)
+   - `pip install -e '.[ml]'` (torch, pandas, numpy, pyarrow)
+   - `pip install pyqlib` (Kronos fine-tune path)
 6. **Hand them this document.** Do not add verbal scope beyond it.
 7. **Agree the acceptance test** in writing before they start: which fold, which
    metric, which threshold.
@@ -322,29 +356,62 @@ git clone <repo-url> axel && cd axel
 git checkout research/kronos-forecast
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
+.venv/bin/pip install -e '.[ml]'
+.venv/bin/pip install pyqlib
+
+# Clone Kronos next to AXEL
+git clone https://github.com/shiyu-coder/Kronos.git ../Kronos
 
 # Verify the baseline before touching anything
 .venv/bin/python -m pytest -q
 .venv/bin/python -m ruff check .
 
-# Baseline backtest (the number to beat)
-.venv/bin/python - <<'PY'
-from axel.data.backtester import trend_returns
-from axel.data.ingest.ohlcv import parse_ohlcv_csv
-bars = parse_ohlcv_csv(open("data/AAPL.csv").read(), source="alpaca")
-print(trend_returns(bars))
-PY
+# 1. Dataset
+.venv/bin/python scripts/fetch_historical_bars.py \
+  --symbols AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH \
+  --start 2023-01-01T00:00:00+00:00 --end 2025-01-01T00:00:00+00:00 \
+  --timeframe 1Hour --out data/bars.csv
+
+# 2. Folds + untouched holdout
+.venv/bin/python scripts/prepare_training_folds.py \
+  --bars data/bars.csv --out data/folds \
+  --train-size 2000 --test-size 500 --holdout-fraction 0.2
+
+# 3. Plan the Kronos run (validates folds, writes train.sh)
+.venv/bin/python scripts/train_kronos.py \
+  --folds data/folds/folds.json --kronos-repo ../Kronos \
+  --out artifacts/kronos-mini --variant mini --gpus 1 --device cuda:0
+
+# 4. Evaluate on the holdout only
+.venv/bin/python scripts/evaluate_forecasts.py \
+  --predictions artifacts/kronos-mini/predictions.csv \
+  --bars data/folds/holdout/holdout_test.csv \
+  --out artifacts/kronos-mini/report.json
+
+# 5. Package the artifact
+.venv/bin/python scripts/build_model_artifact.py \
+  --dir artifacts/kronos-mini --model-id kronos-mini --version 0.1.0 \
+  --model-file model.pt --timeframe 1Hour --horizon-bars 5 \
+  --universe AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH \
+  --train-start 2023-01-01T00:00:00+00:00 --train-end 2024-06-30T00:00:00+00:00 \
+  --validation-start 2024-07-01T00:00:00+00:00 \
+  --validation-end 2025-01-01T00:00:00+00:00 \
+  --metrics artifacts/kronos-mini/report.json
 ```
+
+The full runbook, including `finetune/config.py` settings, is
+`training/kronos/README.md`.
 
 ---
 
 ## 11. The one-paragraph version to send
 
-> AXEL has no training code yet, so please work on branch
-> `research/kronos-forecast`. Scope: fine-tune Kronos on the attached bars
-> dataset (10 symbols, 1-hour, 2023-01 to 2025-01) and deliver a checkpoint, a
-> `manifest.json`, and a read-only adapter in `axel/agents/` that emits
-> `SignalModel` rows. Report metrics only on the held-out window, compare
-> against `axel/data/backtester.py` after costs, and report PBO and deflated
-> Sharpe. Do not touch `axel/risk`, `axel/execution`, `axel/portfolio`, and do
-> not add broker keys. Open a PR when `ruff check .` and the test suite pass.
+> AXEL already has the dataset, fold, evaluation, artifact and adapter plumbing.
+> Please work on branch `research/kronos-forecast` and run
+> `training/kronos/README.md` end to end: fetch the bars, prepare the folds,
+> fine-tune Kronos from the pretrained checkpoint, evaluate on the untouched
+> holdout, and package the checkpoint with `scripts/build_model_artifact.py`.
+> Report metrics only on the held-out window, compare against
+> `axel/data/backtester.py` after costs, and report PBO and deflated Sharpe. Do
+> not touch `axel/risk`, `axel/execution`, `axel/portfolio`, and do not add
+> broker keys. Open a PR when `ruff check .` and the test suite pass.
