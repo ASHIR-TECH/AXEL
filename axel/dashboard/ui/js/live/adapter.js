@@ -66,13 +66,12 @@ function pushLog(line) {
   emit("log", line);
 }
 
-function renderRisk(risk, initial = false) {
+function renderRisk(risk) {
   if (!risk || !risk.proposal) return;
   const key = `${risk.proposal.id}:${risk.verdict}`;
   if (key === lastRiskKey) return;
   lastRiskKey = key;
   emit("risk:start", risk.proposal);
-  if (!initial) S.proposalsEvaluated += 1;
   if (risk.verdict === "PENDING") return;
   const checks = risk.checks || [];
   checks.forEach((c, i) =>
@@ -132,7 +131,7 @@ function applySnapshot(snapshot) {
   emit("killEvents", S.killEvents);
   emit("halt", S.halted);
   for (const line of freshLogs) emit("log", line);
-  renderRisk(snapshot.latest_risk, true);
+  renderRisk(snapshot.latest_risk);
   emit("watchdog");
 }
 
