@@ -11,6 +11,42 @@ contain a training pipeline, so the scope has to be chosen explicitly.
 
 ## 1. Read this first
 
+### 1.1 What the GPU is for
+
+The GPU is used for **Scope A: fine-tuning Kronos**. That is real training, and
+it is the reason this machine is involved.
+
+| Work | GPU | Notes |
+|---|---|---|
+| Fine-tune Kronos (Scope A) | **Required** | Decoder-only transformer over K-line tokens |
+| GPU-accelerated backtesting (Scope C) | Optional | Vectorized over years of bars |
+| The 56-day paper soak | **No** | Wall-clock observation of a real broker |
+| The deterministic runtime | **No** | CPU-only by design, and must stay that way |
+| The dashboard | **No** | Read-only SQL projections |
+
+What is being trained is a **forecaster**, not the trading system. Kronos learns
+to predict future bars. AXEL's risk engine, sizing, approval and execution stay
+deterministic and never learn. The model's output enters the system only as a
+`Signal` row.
+
+Rough sizing (from the Kronos model family):
+
+| Variant | Parameters | GPU memory | Expected fine-tune time |
+|---|---:|---:|---|
+| Kronos-mini | 4.1M | 4–8 GB | under an hour |
+| Kronos-small | 24.7M | 8–16 GB | a few hours |
+| Kronos-base | 102.3M | 16–24 GB | several hours to a day |
+
+Context length is 512 bars for small/base. The Kronos repository documents a
+Qlib-based fine-tuning path; follow its instructions rather than inventing a
+training loop.
+
+Fine-tuning is an experiment, not a guaranteed edge. The pretrained checkpoint
+may already be good enough, and the fine-tuned model may fail the validation
+gate in §5. Report either outcome honestly.
+
+### 1.2 What already exists
+
 There is **no model training code in AXEL today**. Nothing in the repository
 imports `torch`, `sklearn`, `lightgbm` or `xgboost`. What exists is:
 
