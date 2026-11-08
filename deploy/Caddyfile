@@ -1,0 +1,25 @@
+# AXEL edge configuration.
+#
+# Set AXEL_SITE_ADDRESS to your domain (for automatic HTTPS) or leave the
+# default ":80" for a local HTTP-only deployment behind another proxy.
+{$AXEL_SITE_ADDRESS} {
+	encode zstd gzip
+
+	# Long-lived SSE connections must not be buffered by the proxy.
+	reverse_proxy api:8000 {
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
