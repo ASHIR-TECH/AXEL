@@ -12,9 +12,11 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -617,3 +619,28 @@ class OperationalEventModel(Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True, nullable=False
     )
+
+
+# ── Time-series access paths ─────────────────────────────────────────────────
+# These indexes match the queries the runtime and dashboard actually issue.
+# Single-column indexes on ``symbol``/``timestamp`` alone force a sort after
+# the index scan, which degrades as the soak accumulates tens of millions of
+# bars. The composite indexes let the planner walk the index in timestamp
+# order for a single symbol/section.
+#
+# ``upper(section)`` expression indexes keep the case-insensitive dashboard
+# filters indexable. The columns are NOT NULL, so no ``coalesce`` is needed.
+
+Index("ix_ohlcv_bars_symbol_timestamp", OhlcvBar.symbol, OhlcvBar.timestamp)
+Index("ix_signals_section_ts", SignalModel.section, SignalModel.ts)
+Index("ix_equity_snapshots_section_timestamp", EquitySnapshotModel.section, EquitySnapshotModel.timestamp)
+Index(
+    "ix_equity_snapshots_section_upper_timestamp",
+    func.upper(EquitySnapshotModel.section),
+    EquitySnapshotModel.timestamp,
+)
+Index(
+    "ix_positions_section_upper",
+    func.upper(PositionModel.section),
+)
+Index("ix_audit_log_event_type_timestamp", AuditLogModel.event_type, AuditLogModel.timestamp)
