@@ -75,6 +75,13 @@ class AxelSettings(BaseSettings):
     # exhaustion). The exporter reads it to expose alertable metrics.
     persist_operational_events: bool = True
     operational_event_retention_days: int = 30
+    # Retention for the high-volume tables. Defaults are long enough to cover
+    # a full 56-day paper soak plus analysis, while still bounding growth.
+    audit_log_retention_days: int = 90
+    signal_retention_days: int = 90
+    market_data_retention_days: int = 365
+    equity_snapshot_retention_days: int = 730
+    retention_batch_size: int = 5_000
 
     # Hardcoded Risk Defaults (Read-only baseline)
     global_kill_pct: float = 0.10          # 10% account max drawdown
