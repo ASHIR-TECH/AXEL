@@ -59,10 +59,12 @@ are:
 | `axel/training/dataset.py` | Timestamp-axis walk-forward folds and an untouched holdout. |
 | `axel/training/evaluation.py` | Brier, MAE, directional accuracy, cost-adjusted Sharpe, admission gate, trend baseline. |
 | `axel/training/artifact.py` | `ModelArtifact` + `manifest.json` contract with model hash. |
+| `axel/training/qlib.py` | Qlib CSV/binary export for the Kronos fine-tune. |
 | `axel/agents/kronos.py` | Proposal-only `KronosForecastAnalyst` emitting `SignalModel` rows. |
 | `scripts/fetch_historical_bars.py` | Alpaca market data → CSV. |
 | `scripts/export_training_dataset.py` | AXEL DB → CSV + manifest. |
 | `scripts/prepare_training_folds.py` | CSV → folds + holdout + `folds.json`. |
+| `scripts/export_qlib_dataset.py` | CSV → Qlib CSV + binary data for Kronos. |
 | `scripts/evaluate_forecasts.py` | `predictions.csv` → `report.json` + pass/fail. |
 | `scripts/build_model_artifact.py` | Checkpoint → `manifest.json`. |
 | `scripts/train_kronos.py` | Validates folds and emits/runs the Kronos commands. |
@@ -120,7 +122,7 @@ Matches `axel/data/ingest/ohlcv.py`:
 
 ```csv
 symbol,timestamp,open,high,low,close,volume,timeframe
-AAPL,2024-01-02T14:30:00+00:00,185.64,186.10,184.90,185.90,51230000,1h
+AAPL,2026-11-06T04:00:00+00:00,269.10,270.40,267.85,269.90,41230000,1Day
 ```
 
 Rules:
@@ -135,25 +137,29 @@ Rules:
 ### How to source it
 
 Option 1, via AXEL's read-only Alpaca market-data client. The wrapper script
-does the fetch and writes the canonical CSV:
+does the fetch and writes the canonical CSV. The dataset for this handoff is
+already at `data/kronos/bars.csv` (21 symbols, 33,147 daily bars, 2020-07-27 →
+2026-11-06):
 
 ```bash
 .venv/bin/python scripts/fetch_historical_bars.py \
-  --symbols AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH \
-  --start 2023-01-01T00:00:00+00:00 \
-  --end   2025-01-01T00:00:00+00:00 \
-  --timeframe 1Hour \
-  --out data/bars.csv
+  --symbols AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH,JNJ,V,WMT,PG,HD,BAC,DIS,NFLX,AMD,CRM,SPY \
+  --start 2020-01-01T00:00:00+00:00 \
+  --end   2026-11-09T00:00:00+00:00 \
+  --timeframe 1Day \
+  --out data/kronos/bars.csv
 ```
 
 Option 2, export what is already in the AXEL database:
 
 ```bash
 .venv/bin/python scripts/export_training_dataset.py \
-  --out data/dataset --timeframe 1Hour
+  --out data/kronos/dataset --timeframe 1Day
 ```
 
 Option 3, provide a CSV export from any vendor that matches the schema above.
+Alpaca's free IEX feed starts at 2020-07-27 for daily bars and 2023 for
+intraday bars; use daily, which is what Kronos's Qlib path expects.
 
 ### Split policy
 
@@ -161,20 +167,38 @@ Use the existing code, do not invent a split:
 
 ```bash
 .venv/bin/python scripts/prepare_training_folds.py \
-  --bars data/bars.csv \
-  --out  data/folds \
-  --train-size 2000 \
-  --test-size 500 \
+  --bars data/kronos/bars.csv \
+  --out  data/kronos/folds \
+  --train-size 750 \
+  --test-size 150 \
   --holdout-fraction 0.2
 ```
 
 Under the hood this calls
 `axel.validation.walk_forward.walk_forward_folds` on the shared timestamp axis,
 then writes `fold_NN/train.csv`, `fold_NN/test.csv`, an untouched holdout and
-`folds.json`.
+`folds.json`. The holdout is 6,636 rows from 2025-08-07 to 2026-11-06.
 
 Report metrics only on folds the model never saw. If the model was tuned on the
 test window, the result is invalid.
+
+### Qlib conversion
+
+Kronos fine-tunes through Qlib, so convert the CSV before training:
+
+```bash
+.venv/bin/python scripts/export_qlib_dataset.py \
+  --bars data/kronos/bars.csv \
+  --out data/kronos/qlib_csv \
+  --qlib-dir data/kronos/qlib \
+  --qlib-script ../qlib/scripts/dump_bin.py \
+  --freq day
+```
+
+This writes `calendars/day.txt`, `instruments/all.txt` and
+`features/<symbol>/*.day.bin`. `instruments/all.txt` is what `instrument =
+"all"` refers to in the Kronos config. The `vwap` field is the OHLC typical
+price, because Alpaca IEX bars do not carry a VWAP.
 
 ---
 
@@ -198,11 +222,11 @@ artifacts/<model_id>/<version>/
   "version": "0.1.0",
   "task": "forecast",
   "section": "STOCKS",
-  "timeframe": "1Hour",
-  "horizon_bars": 5,
+  "timeframe": "1Day",
+  "horizon_bars": 10,
   "universe": ["AAPL", "MSFT", "NVDA"],
-  "train_window": ["2023-01-01T00:00:00+00:00", "2024-06-30T00:00:00+00:00"],
-  "validation_window": ["2024-07-01T00:00:00+00:00", "2025-01-01T00:00:00+00:00"],
+  "train_window": ["2020-07-27T00:00:00+00:00", "2025-02-01T00:00:00+00:00"],
+  "validation_window": ["2025-08-07T00:00:00+00:00", "2026-11-06T00:00:00+00:00"],
   "seed": 7,
   "content_hash": "<sha256 of the model file>",
   "code_commit": "<git sha of the training code>",
@@ -359,43 +383,49 @@ python3 -m venv .venv
 .venv/bin/pip install -e '.[ml]'
 .venv/bin/pip install pyqlib
 
-# Clone Kronos next to AXEL
+# Clone Kronos and Qlib next to AXEL
 git clone https://github.com/shiyu-coder/Kronos.git ../Kronos
+git clone https://github.com/microsoft/qlib.git ../qlib
 
 # Verify the baseline before touching anything
 .venv/bin/python -m pytest -q
 .venv/bin/python -m ruff check .
 
-# 1. Dataset
+# 1. Dataset (already generated at data/kronos/bars.csv)
 .venv/bin/python scripts/fetch_historical_bars.py \
-  --symbols AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH \
-  --start 2023-01-01T00:00:00+00:00 --end 2025-01-01T00:00:00+00:00 \
-  --timeframe 1Hour --out data/bars.csv
+  --symbols AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH,JNJ,V,WMT,PG,HD,BAC,DIS,NFLX,AMD,CRM,SPY \
+  --start 2020-01-01T00:00:00+00:00 --end 2026-11-09T00:00:00+00:00 \
+  --timeframe 1Day --out data/kronos/bars.csv
 
 # 2. Folds + untouched holdout
 .venv/bin/python scripts/prepare_training_folds.py \
-  --bars data/bars.csv --out data/folds \
-  --train-size 2000 --test-size 500 --holdout-fraction 0.2
+  --bars data/kronos/bars.csv --out data/kronos/folds \
+  --train-size 750 --test-size 150 --holdout-fraction 0.2
 
-# 3. Plan the Kronos run (validates folds, writes train.sh)
+# 3. Convert to Qlib binary data
+.venv/bin/python scripts/export_qlib_dataset.py \
+  --bars data/kronos/bars.csv --out data/kronos/qlib_csv \
+  --qlib-dir data/kronos/qlib --qlib-script ../qlib/scripts/dump_bin.py --freq day
+
+# 4. Plan the Kronos run (validates folds, writes train.sh)
 .venv/bin/python scripts/train_kronos.py \
-  --folds data/folds/folds.json --kronos-repo ../Kronos \
+  --folds data/kronos/folds/folds.json --kronos-repo ../Kronos \
   --out artifacts/kronos-mini --variant mini --gpus 1 --device cuda:0
 
-# 4. Evaluate on the holdout only
+# 5. Evaluate on the holdout only
 .venv/bin/python scripts/evaluate_forecasts.py \
   --predictions artifacts/kronos-mini/predictions.csv \
-  --bars data/folds/holdout/holdout_test.csv \
+  --bars data/kronos/folds/holdout/holdout_test.csv \
   --out artifacts/kronos-mini/report.json
 
-# 5. Package the artifact
+# 6. Package the artifact
 .venv/bin/python scripts/build_model_artifact.py \
   --dir artifacts/kronos-mini --model-id kronos-mini --version 0.1.0 \
-  --model-file model.pt --timeframe 1Hour --horizon-bars 5 \
-  --universe AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH \
-  --train-start 2023-01-01T00:00:00+00:00 --train-end 2024-06-30T00:00:00+00:00 \
-  --validation-start 2024-07-01T00:00:00+00:00 \
-  --validation-end 2025-01-01T00:00:00+00:00 \
+  --model-file model.pt --timeframe 1Day --horizon-bars 10 \
+  --universe AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,JPM,XOM,UNH,JNJ,V,WMT,PG,HD,BAC,DIS,NFLX,AMD,CRM,SPY \
+  --train-start 2020-07-27T00:00:00+00:00 --train-end 2025-02-01T00:00:00+00:00 \
+  --validation-start 2025-08-07T00:00:00+00:00 \
+  --validation-end 2026-11-06T00:00:00+00:00 \
   --metrics artifacts/kronos-mini/report.json
 ```
 
