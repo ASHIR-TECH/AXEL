@@ -12,6 +12,13 @@ from axel.agents.analysts import (
 )
 from axel.agents.audit import PromptAuditLog, PromptAuditRecord
 from axel.agents.budget import LlmBudgetGuard
+from axel.agents.kronos import (
+    Forecast,
+    KronosForecastAnalyst,
+    Predictor,
+    StubPredictor,
+    load_analyst,
+)
 from axel.agents.manager import StocksSectionManager
 from axel.agents.memory import (
     DecisionEntry,
@@ -47,13 +54,16 @@ __all__ = [
     "DebateResult",
     "DecisionEntry",
     "DecisionMemory",
+    "Forecast",
     "FundamentalAnalyst",
+    "KronosForecastAnalyst",
     "LlmBudgetGuard",
     "MacroAnalyst",
     "MemoryEntry",
     "MemoryFormatError",
     "OpenAICompatibleGateway",
     "Phase3ExitReport",
+    "Predictor",
     "PromptAuditLog",
     "PromptAuditRecord",
     "PromptSanitizer",
@@ -62,12 +72,14 @@ __all__ = [
     "StocksAnalyst",
     "StocksExpertPanel",
     "StocksSectionManager",
+    "StubPredictor",
     "TechnicalAnalyst",
     "UntrustedDocument",
     "build_stock_proposal",
     "configured_gateway",
     "decision_id",
     "gateway_from_settings",
+    "load_analyst",
     "reflection_id",
     "sanitize_document",
     "simulate_stocks_agent_week",
