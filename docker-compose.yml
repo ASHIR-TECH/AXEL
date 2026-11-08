@@ -10,9 +10,33 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-axelpass}
       POSTGRES_DB: ${POSTGRES_DB:-axel}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - timescaledb_data:/var/lib/postgresql/data
+    # Tuned for a write-heavy single-node paper soak. The defaults in the image
+    # (~128 MB shared_buffers) are far too small once the runtime writes
+    # hundreds of thousands of bars per day.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - wal_compression=on
+      - -c
+      - synchronous_commit=off
+      - -c
+      - track_io_timing=on
+      - -c
+      - max_connections=100
+    shm_size: 1gb
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-axel} -d ${POSTGRES_DB:-axel}"]
       interval: 5s
