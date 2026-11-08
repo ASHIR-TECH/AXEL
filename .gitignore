@@ -49,6 +49,8 @@ repos/
 *.sqlite3
 data/timescaledb/
 data/redis/
+.axel_killswitch.json
+.axel_halt.json
 
 # Logs & temp
 *.log
