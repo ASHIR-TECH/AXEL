@@ -184,6 +184,49 @@ database that already has a migration history.
 | `KILLSWITCH_STATE_FILE` | `.axel_killswitch.json` | Shared kill-switch state file |
 | `HALT_STATE_FILE` | `.axel_halt.json` | Halt state read by the watchdog |
 | `LOG_FILE` | empty | Empty keeps stdout-only logs for Docker |
+| `AUDIT_LOG_RETENTION_DAYS` | `90` | Audit rows kept before pruning |
+| `SIGNAL_RETENTION_DAYS` | `90` | Signal rows kept before pruning |
+| `MARKET_DATA_RETENTION_DAYS` | `365` | OHLCV bars kept before pruning |
+| `EQUITY_SNAPSHOT_RETENTION_DAYS` | `730` | Equity snapshots kept before pruning |
+| `RETENTION_BATCH_SIZE` | `5000` | Rows deleted per batch |
+
+### Database sizing and retention
+
+The paper runtime is write-heavy. At `PAPER_RUNTIME_INTERVAL_SECONDS=5` it
+writes roughly 0.7–1.2M rows per day; at `60` it writes about a twelfth of that.
+Use PostgreSQL for any soak longer than a few hours — the default SQLite URL is
+for tests only.
+
+The schema now ships composite indexes for the runtime and dashboard access
+paths. `docker-compose.yml` also tunes Postgres for a write-heavy single node
+(`shared_buffers=1GB`, `effective_cache_size=3GB`, `wal_compression=on`,
+`synchronous_commit=off`) and binds it to `127.0.0.1` only.
+
+Run retention nightly, for example with a systemd timer:
+
+```bash
+python scripts/prune_operational_data.py
+```
+
+`migrations/versions/` is still empty, so the `migrate` service uses
+`init_db()`. **Generate the initial Alembic revision before the soak starts.**
+Otherwise indexes added later will not be applied to an existing database.
+
+TimescaleDB is installed but not yet used as TimescaleDB: no hypertables,
+compression or continuous aggregates exist. See `docs/next-steps.md` for the
+conversion steps and the primary-key constraint that must change first.
+
+### Proving soak continuity
+
+The promotion gate needs 56 days of continuous paper operation. Workers record a
+heartbeat each cycle, including detected downtime and restart counts:
+
+```bash
+python scripts/soak_status.py --minimum-days 56
+```
+
+The reported coverage is `(last_seen - first_seen) - downtime`, and the gate
+uses the least-continuous of `ingest-worker`, `agent-worker` and `core-worker`.
 
 ## 6. Keeping it running
 
