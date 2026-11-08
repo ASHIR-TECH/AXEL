@@ -32,6 +32,12 @@ from axel.training.evaluation import (
     strategy_returns,
     trend_baseline_sharpe,
 )
+from axel.training.qlib import (
+    dump_bin_command,
+    dump_qlib_bin,
+    typical_price,
+    write_qlib_csvs,
+)
 
 __all__ = [
     "ARTIFACT_SCHEMA_VERSION",
@@ -43,6 +49,8 @@ __all__ = [
     "brier_score",
     "build_artifact",
     "directional_accuracy",
+    "dump_bin_command",
+    "dump_qlib_bin",
     "evaluate",
     "load_artifact",
     "load_bars_csv",
@@ -52,7 +60,9 @@ __all__ = [
     "sha256_file",
     "strategy_returns",
     "trend_baseline_sharpe",
+    "typical_price",
     "write_artifact",
     "write_folds",
     "write_holdout",
+    "write_qlib_csvs",
 ]
