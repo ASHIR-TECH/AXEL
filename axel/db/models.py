@@ -621,6 +621,29 @@ class OperationalEventModel(Base):
     )
 
 
+class WorkerHeartbeatModel(Base):
+    """Liveness record for every long-running runtime worker.
+
+    One row per worker name, overwritten on every cycle. The paper soak uses
+    these rows to prove that operation was continuous instead of assuming that
+    wall-clock time since a start date was covered.
+    """
+
+    __tablename__ = "worker_heartbeats"
+
+    worker: Mapped[str] = mapped_column(String(64), primary_key=True)
+    cycles: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    interval_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    # Accumulated wall-clock time the worker was not running, detected when it
+    # resumes after a longer-than-expected gap. This is what turns "56 days
+    # since the start date" into provable coverage.
+    downtime_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    gap_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    version: Mapped[str | None] = mapped_column(String(64))
+
+
 # ── Time-series access paths ─────────────────────────────────────────────────
 # These indexes match the queries the runtime and dashboard actually issue.
 # Single-column indexes on ``symbol``/``timestamp`` alone force a sort after
