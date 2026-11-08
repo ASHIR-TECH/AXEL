@@ -164,7 +164,7 @@ def next_bar(
     previous = latest_price(session, symbol)
     open_price = previous if previous is not None else spec.base_price
 
-    bucket = int(timestamp.timestamp() // max(1.0, interval_seconds))
+    bucket = int(timestamp.timestamp() // max(0.001, interval_seconds))
     rng = random.Random(f"{seed}:{symbol}:{bucket}")
     shock = rng.gauss(0.0, 1.0)
     # Clamp fat tails so a paper run cannot generate absurd marks.
@@ -187,7 +187,7 @@ def next_bar(
 
 
 def bar_id(symbol: str, timestamp: datetime, interval_seconds: float) -> str:
-    bucket = int(timestamp.timestamp() // max(1.0, interval_seconds))
+    bucket = int(timestamp.timestamp() // max(0.001, interval_seconds))
     safe = symbol.replace(" ", "_").replace(":", "_").replace(">", "_")
     return f"bar_{safe}_{bucket}"
 
