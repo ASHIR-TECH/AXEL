@@ -13,6 +13,8 @@ from axel.data.schemas import BarRecord, Provenance, RawPayload, parse_dt, sha25
 from axel.observability.api_health import record_http_call
 
 BASE_URL = "https://data.alpaca.markets/v2"
+PAGE_LIMIT = 10_000
+MAX_PAGES = 100
 
 _TIMEFRAME_DURATIONS: dict[str, timedelta] = {
     "1Min": timedelta(minutes=1),
@@ -94,24 +96,60 @@ class AlpacaMarketData:
     ) -> ProviderResult:
         if start.tzinfo is None or end.tzinfo is None or end <= start:
             raise ValueError("start/end must be ordered timezone-aware datetimes")
-        response = self._client.get(
-            f"{BASE_URL}/stocks/bars",
-            headers=self._headers,
-            params={
+        records: list[BarRecord] = []
+        raw_items: list[dict[str, object]] = []
+        page_token: str | None = None
+        page_count = 0
+        for _ in range(MAX_PAGES):
+            page_count += 1
+            params: dict[str, str | int] = {
                 "symbols": symbol.upper(),
                 "start": start.isoformat(),
                 "end": end.isoformat(),
                 "timeframe": timeframe,
                 "feed": "iex",
-            },
+                "limit": PAGE_LIMIT,
+            }
+            if page_token:
+                params["page_token"] = page_token
+            response = self._client.get(
+                f"{BASE_URL}/stocks/bars",
+                headers=self._headers,
+                params=params,
+            )
+            record_http_call("alpaca-data", "fetch_bars", response)
+            response.raise_for_status()
+            records.extend(
+                parse_bars(response.text, symbol=symbol, venue=self.venue, timeframe=timeframe)
+            )
+            payload = response.json()
+            page_bars = payload.get("bars", {})
+            if isinstance(page_bars, dict):
+                raw_items.extend(page_bars.get(symbol.upper(), []))
+            page_token = payload.get("next_page_token")
+            if not page_token:
+                break
+        else:
+            raise RuntimeError(
+                f"Alpaca pagination exceeded {MAX_PAGES} pages for {symbol} {timeframe}"
+            )
+
+        body = json.dumps(
+            {"bars": {symbol.upper(): raw_items}},
+            separators=(",", ":"),
+            sort_keys=True,
         )
-        record_http_call("alpaca-data", "fetch_bars", response)
-        response.raise_for_status()
-        records = parse_bars(
-            response.text, symbol=symbol, venue=self.venue, timeframe=timeframe
-        )
-        raw = _raw_from_response(
-            response, symbol=symbol, venue=self.venue, timeframe=timeframe
+        raw = RawPayload(
+            source="alpaca",
+            request=str(response.request.url),
+            fetched_at=now_utc(),
+            body=body,
+            context=(
+                ("symbol", symbol.upper()),
+                ("venue", self.venue),
+                ("timeframe", timeframe),
+                ("pages", str(page_count)),
+            ),
         )
         return ProviderResult(raw=raw, records=tuple(records))
 

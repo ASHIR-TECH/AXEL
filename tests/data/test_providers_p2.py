@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 import httpx
 
 from axel.data.providers import AlpacaMarketData, FredData, GdeltNews, SecEdgar
+from axel.data.providers.alpaca import PAGE_LIMIT
 
 
 def _client(handler) -> httpx.Client:
@@ -38,6 +39,46 @@ def test_alpaca_fetch_bars_are_canonical_and_available_after_close() -> None:
         "AAPL", datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 3, tzinfo=UTC)
     )
     assert legacy[0].close == 2
+
+
+def test_alpaca_fetch_bars_follows_pagination() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert request.url.params["limit"] == str(PAGE_LIMIT)
+        if len(calls) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "bars": {
+                        "AAPL": [
+                            {"t": "2026-01-02T00:00:00Z", "o": 1, "h": 2, "l": 1, "c": 2, "v": 4}
+                        ]
+                    },
+                    "next_page_token": "page-2",
+                },
+            )
+        assert request.url.params["page_token"] == "page-2"
+        return httpx.Response(
+            200,
+            json={
+                "bars": {
+                    "AAPL": [
+                        {"t": "2026-01-05T00:00:00Z", "o": 2, "h": 3, "l": 2, "c": 3, "v": 5}
+                    ]
+                }
+            },
+        )
+
+    provider = AlpacaMarketData("key", "secret", _client(handler))
+    result = provider.fetch_bars(
+        "AAPL", datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 6, tzinfo=UTC)
+    )
+
+    assert len(calls) == 2
+    assert [record.close for record in result.records] == [2.0, 3.0]
+    assert dict(result.raw.context)["pages"] == "2"
 
 
 def test_fred_fetch_observations_carry_vintage() -> None:
