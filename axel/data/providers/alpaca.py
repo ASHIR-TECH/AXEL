@@ -27,6 +27,13 @@ _TIMEFRAME_DURATIONS: dict[str, timedelta] = {
 }
 
 
+_ADJUSTMENT_STATUS = {
+    "raw": "raw",
+    "split": "split_adjusted",
+    "all": "split_and_dividend_adjusted",
+}
+
+
 def timeframe_duration(timeframe: str) -> timedelta:
     """Bar availability offset: a bar becomes usable only once it has closed."""
     return _TIMEFRAME_DURATIONS.get(timeframe, timedelta(days=1))
@@ -39,6 +46,7 @@ def parse_bars(
     venue: str = "alpaca-iex",
     timeframe: str = "1Day",
     ingestion_timestamp: datetime | None = None,
+    adjustment_status: str = "raw",
 ) -> list[BarRecord]:
     """Convert an Alpaca bars payload into canonical, availability-aware bar records."""
     payload = json.loads(body_text)
@@ -61,7 +69,7 @@ def parse_bars(
                 low=float(item["l"]),
                 close=float(item["c"]),
                 volume=float(item["v"]),
-                adjustment_status="raw",
+                adjustment_status=adjustment_status,
                 provenance=Provenance(
                     source="alpaca",
                     source_id=f"{symbol.upper()}:{timeframe}",
@@ -84,12 +92,18 @@ class AlpacaMarketData:
         secret_key: str,
         client: httpx.Client | None = None,
         venue: str = "alpaca-iex",
+        adjustment: str = "raw",
     ) -> None:
         if not api_key or not secret_key:
             raise ValueError("Alpaca market-data credentials are required")
+        if adjustment not in _ADJUSTMENT_STATUS:
+            raise ValueError(
+                f"invalid adjustment {adjustment!r}; expected one of {sorted(_ADJUSTMENT_STATUS)}"
+            )
         self._headers = {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": secret_key}
         self._client = client or httpx.Client(timeout=20)
         self.venue = venue
+        self.adjustment = adjustment
 
     def fetch_bars(
         self, symbol: str, start: datetime, end: datetime, timeframe: str = "1Day"
@@ -109,6 +123,7 @@ class AlpacaMarketData:
                 "timeframe": timeframe,
                 "feed": "iex",
                 "limit": PAGE_LIMIT,
+                "adjustment": self.adjustment,
             }
             if page_token:
                 params["page_token"] = page_token
@@ -120,7 +135,13 @@ class AlpacaMarketData:
             record_http_call("alpaca-data", "fetch_bars", response)
             response.raise_for_status()
             records.extend(
-                parse_bars(response.text, symbol=symbol, venue=self.venue, timeframe=timeframe)
+                parse_bars(
+                    response.text,
+                    symbol=symbol,
+                    venue=self.venue,
+                    timeframe=timeframe,
+                    adjustment_status=_ADJUSTMENT_STATUS[self.adjustment],
+                )
             )
             payload = response.json()
             page_bars = payload.get("bars", {})

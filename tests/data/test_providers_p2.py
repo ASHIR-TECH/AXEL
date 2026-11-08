@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 
 from axel.data.providers import AlpacaMarketData, FredData, GdeltNews, SecEdgar
 from axel.data.providers.alpaca import PAGE_LIMIT
@@ -79,6 +80,32 @@ def test_alpaca_fetch_bars_follows_pagination() -> None:
     assert len(calls) == 2
     assert [record.close for record in result.records] == [2.0, 3.0]
     assert dict(result.raw.context)["pages"] == "2"
+
+
+def test_alpaca_fetch_bars_can_request_split_adjustment() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["adjustment"] == "split"
+        return httpx.Response(
+            200,
+            json={
+                "bars": {
+                    "AAPL": [
+                        {"t": "2026-01-02T00:00:00Z", "o": 1, "h": 2, "l": 1, "c": 2, "v": 4}
+                    ]
+                }
+            },
+        )
+
+    provider = AlpacaMarketData("key", "secret", _client(handler), adjustment="split")
+    result = provider.fetch_bars(
+        "AAPL", datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 3, tzinfo=UTC)
+    )
+    assert result.records[0].adjustment_status == "split_adjusted"
+
+
+def test_alpaca_rejects_unknown_adjustment() -> None:
+    with pytest.raises(ValueError):
+        AlpacaMarketData("key", "secret", adjustment="dividend")
 
 
 def test_fred_fetch_observations_carry_vintage() -> None:

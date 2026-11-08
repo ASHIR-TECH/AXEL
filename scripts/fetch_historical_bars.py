@@ -29,6 +29,12 @@ def main() -> int:
     parser.add_argument("--start", required=True, help="ISO timestamp with timezone")
     parser.add_argument("--end", required=True, help="ISO timestamp with timezone")
     parser.add_argument("--timeframe", default="1Hour", help="Alpaca timeframe (default: 1Hour)")
+    parser.add_argument(
+        "--adjustment",
+        choices=("raw", "split", "all"),
+        default="split",
+        help="price adjustment (default: split; use all to include dividends)",
+    )
     args = parser.parse_args()
 
     api_key = settings.alpaca_api_key.get_secret_value() if settings.alpaca_api_key else ""
@@ -39,7 +45,9 @@ def main() -> int:
         raise SystemExit("ALPACA_API_KEY and ALPACA_SECRET_KEY are required for market data")
 
     symbols = [item.strip().upper() for item in args.symbols.split(",") if item.strip()]
-    provider = AlpacaMarketData(api_key=api_key, secret_key=secret_key)
+    provider = AlpacaMarketData(
+        api_key=api_key, secret_key=secret_key, adjustment=args.adjustment
+    )
     rows, content_hash = fetch_to_csv(
         provider,
         symbols,
