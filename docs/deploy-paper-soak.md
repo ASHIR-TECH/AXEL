@@ -23,20 +23,29 @@ This deploys a **paper-only** worker, TimescaleDB, Redis, and the read-only dash
 ```bash
 docker compose --profile paper up -d --build
 docker compose --profile paper ps
-docker compose --profile paper logs -f paper-soak
+docker compose logs -f api ingest-worker agent-worker core-worker
 ```
 
-The dashboard is served at `http://YOUR_SERVER_IP:8080` by default. Set `AXEL_DASHBOARD_PORT` in `.env` to change it. Keep it behind a VPN, reverse proxy, or firewall; the static dashboard has no authentication.
+The terminal is served by the read-only API at `http://YOUR_SERVER_IP:8000/`
+and, in a normal deployment, through Caddy at `https://YOUR_DOMAIN/`. Caddy is
+the only public entry point; keep the API bound to localhost or the Docker
+network. The dashboard has no user authentication by default, so keep it behind
+a VPN, reverse proxy, or firewall, or set `DASHBOARD_API_TOKEN`.
 
 ## Verify
 
 ```bash
+curl -fsS http://127.0.0.1:8000/api/v1/healthz
+curl -fsS http://127.0.0.1:8000/api/v1/dashboard/snapshot | jq '.counters, .equity'
 docker compose --profile paper exec paper-soak python scripts/run_paper_soak.py --once
-docker compose --profile paper logs --tail=100 paper-soak
+docker compose --profile paper logs --tail=100 paper-soak api ingest-worker agent-worker core-worker
 docker compose --profile paper ps
 ```
 
-The worker refuses to start if any runtime setting is not paper-only. It writes a heartbeat every minute; Docker restarts it after an unexpected failure.
+The workers refuse to start if any runtime setting is not paper-only. The
+paper-soak process writes a heartbeat every minute; Docker restarts it after an
+unexpected failure. The dashboard header must show `LIVE` when the API feed is
+connected.
 
 ## Operations
 
@@ -48,4 +57,9 @@ The worker refuses to start if any runtime setting is not paper-only. It writes 
 
 ## Current scope
 
-This starts the persistent paper-soak process and dashboard. The next worker integration attaches validated agent proposals, paper-order placement, fill collection, reconciliation, and Phase 5 observation recording to this process. Do not treat a healthy worker as evidence to enable live trading.
+This starts the persistent paper-soak process, the deterministic ingest, agent
+and core workers, the read-only API, and the live terminal. The workers write
+durable signals, proposals, risk decisions, orders, fills, positions and equity
+snapshots, so the dashboard counters and charts are backed by real records.
+They are paper-only and require no LLM or broker credentials. Do not treat a
+healthy worker or a positive paper P&L as evidence to enable live trading.
