@@ -9,6 +9,52 @@ from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _collect_pairs(
+    *,
+    primary: SecretStr | None,
+    primary_secret: SecretStr | None,
+    secondary: SecretStr | None,
+    secondary_secret: SecretStr | None,
+    combined: SecretStr | None,
+    combined_label: str,
+) -> list[tuple[str, str]]:
+    """Merge optional key pairs, skipping incomplete ones and de-duplicating.
+
+    The combined form is ``key:secret,key:secret``. A malformed entry is a
+    configuration error, not something to silently drop.
+    """
+    pairs: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def add(key: SecretStr | None, secret: SecretStr | None) -> None:
+        if key is None or secret is None:
+            return
+        key_id = key.get_secret_value().strip()
+        key_secret = secret.get_secret_value().strip()
+        if not key_id or not key_secret or key_id in seen:
+            return
+        seen.add(key_id)
+        pairs.append((key_id, key_secret))
+
+    add(primary, primary_secret)
+    add(secondary, secondary_secret)
+    if combined is not None:
+        for entry in combined.get_secret_value().split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            key_id, separator, key_secret = entry.partition(":")
+            if not separator or not key_id.strip() or not key_secret.strip():
+                raise ValueError(
+                    f"{combined_label} entries must be 'key:secret' pairs separated by commas"
+                )
+            if key_id.strip() in seen:
+                continue
+            seen.add(key_id.strip())
+            pairs.append((key_id.strip(), key_secret.strip()))
+    return pairs
+
+
 class AxelSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -64,7 +110,14 @@ class AxelSettings(BaseSettings):
     # Data providers. These are read-only credentials; execution stays isolated.
     fred_api_key: SecretStr | None = None
     sec_user_agent: str | None = None
+    massive_api_key: SecretStr | None = None
+    massive_base_url: str = "https://api.massive.com"
+    # Equibles supports the same rotation policy as Alpaca's data keys.
     equibles_api_key: SecretStr | None = None
+    equibles_api_key_2: SecretStr | None = None
+    equibles_api_keys: SecretStr | None = None
+    equibles_key_strategy: Literal["failover", "round_robin", "random"] = "failover"
+    equibles_key_cooldown_seconds: float = 60.0
     equibles_base_url: str = "https://api.equibles.com/v1"
 
     # Monitoring / alerting. All defaults keep the exporter and relay bound to
@@ -139,36 +192,29 @@ class AxelSettings(BaseSettings):
         pairs in ``ALPACA_API_KEYS``. Incomplete pairs are skipped so an
         optional second account cannot prevent the first from starting.
         """
-        pairs: list[tuple[str, str]] = []
-        seen: set[str] = set()
+        return _collect_pairs(
+            primary=self.alpaca_api_key,
+            primary_secret=self.alpaca_secret_key,
+            secondary=self.alpaca_api_key_2,
+            secondary_secret=self.alpaca_secret_key_2,
+            combined=self.alpaca_api_keys,
+            combined_label="ALPACA_API_KEYS",
+        )
 
-        def add(key: SecretStr | None, secret: SecretStr | None) -> None:
-            if key is None or secret is None:
-                return
-            key_id = key.get_secret_value().strip()
-            key_secret = secret.get_secret_value().strip()
-            if not key_id or not key_secret or key_id in seen:
-                return
-            seen.add(key_id)
-            pairs.append((key_id, key_secret))
+    def equibles_credentials(self) -> list[tuple[str, str]]:
+        """Return every complete Equibles key, de-duplicated.
 
-        add(self.alpaca_api_key, self.alpaca_secret_key)
-        add(self.alpaca_api_key_2, self.alpaca_secret_key_2)
-        if self.alpaca_api_keys is not None:
-            for entry in self.alpaca_api_keys.get_secret_value().split(","):
-                entry = entry.strip()
-                if not entry:
-                    continue
-                key_id, separator, key_secret = entry.partition(":")
-                if not separator or not key_id.strip() or not key_secret.strip():
-                    raise ValueError(
-                        "ALPACA_API_KEYS entries must be 'key:secret' pairs separated by commas"
-                    )
-                if key_id.strip() in seen:
-                    continue
-                seen.add(key_id.strip())
-                pairs.append((key_id.strip(), key_secret.strip()))
-        return pairs
+        Equibles keys have no separate secret, so each secret slot repeats the
+        key. This keeps the pool interface identical for both providers.
+        """
+        return _collect_pairs(
+            primary=self.equibles_api_key,
+            primary_secret=self.equibles_api_key,
+            secondary=self.equibles_api_key_2,
+            secondary_secret=self.equibles_api_key_2,
+            combined=self.equibles_api_keys,
+            combined_label="EQUIBLES_API_KEYS",
+        )
 
     def is_live_permitted(self) -> bool:
         """Returns True only when all explicit live confirmations are met."""
