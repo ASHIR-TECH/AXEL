@@ -181,65 +181,78 @@ not carry a VWAP.
 
 ## 4. Fine-tune Kronos
 
-`scripts/train_kronos.py` validates the fold manifest and writes the exact
-Kronos commands. It does not import `torch`, so it is safe to run anywhere.
+`scripts/train_kronos.py` validates the fold manifest, derives the time windows,
+and **generates the exact `finetune/config.py`** that points Kronos at AXEL's
+Qlib data. It does not import `torch`, so it is safe to run anywhere.
+
+Kronos does **not** read `folds.json`. It reads the Qlib binary data at
+`qlib_data_path`, using `instrument = "all"` and the windows in `config.py`.
+That is why the config is generated rather than hand-edited.
 
 ```bash
 .venv/bin/python scripts/train_kronos.py \
   --folds data/kronos/folds/folds.json \
   --kronos-repo ../Kronos \
   --out artifacts/kronos-mini \
+  --data-root data/kronos \
   --variant mini \
   --gpus 1 \
-  --device cuda:0
+  --device cuda:0 \
+  --install-config
 ```
 
-This writes `train_plan.json` and `train.sh` and prints:
+`--install-config` writes the generated config to
+`../Kronos/finetune/config.py` and keeps the original as `config.py.orig`.
+`--run` refuses to start unless the config was installed, so it cannot train on
+the Kronos demo data by accident.
+
+This writes:
 
 ```text
-python finetune/qlib_data_preprocess.py
-torchrun --standalone --nproc_per_node=1 finetune/train_tokenizer.py
-torchrun --standalone --nproc_per_node=1 finetune/train_predictor.py
-python finetune/qlib_test.py --device cuda:0
+artifacts/kronos-mini/
+  kronos_config.py    # generated config, also installed into ../Kronos
+  train_plan.json     # data source, symbols, windows, commands
+  train.sh            # reproducible command script
 ```
 
-Required edits to `../Kronos/finetune/config.py`:
+Generated windows for this dataset:
 
 | Setting | Value |
 |---|---|
 | `qlib_data_path` | `<abs>/data/kronos/qlib` |
-| `instrument` | `"all"` |
-| `dataset_begin_time` | `"2020-07-27"` |
-| `dataset_end_time` | `"2026-11-06"` |
-| `train_time_range` | `["2020-07-27", "2025-02-01"]` |
-| `val_time_range` | `["2024-10-01", "2025-08-06"]` |
+| `instrument` | `all` (from `instruments/all.txt`) |
+| `dataset_begin_time` | `2020-07-27` |
+| `dataset_end_time` | `2026-11-06` |
+| `train_time_range` | `["2020-07-27", "2025-02-07"]` |
+| `val_time_range` | `["2024-10-10", "2025-08-06"]` |
 | `test_time_range` | `["2025-08-07", "2026-11-06"]` |
 | `backtest_time_range` | `["2025-08-07", "2026-11-06"]` |
 | `dataset_path` | `<abs>/data/kronos/processed` |
 | `save_path` | `<abs>/artifacts/kronos-mini/runs` |
 | `pretrained_tokenizer_path` | `NeoQuasar/Kronos-Tokenizer-2k` |
 | `pretrained_predictor_path` | `NeoQuasar/Kronos-mini` |
-| `backtest_n_symbol_hold` | `5` (must be ≤ universe size) |
+| `backtest_n_symbol_hold` | `5` (default 50 exceeds the 21-symbol universe) |
 | `backtest_n_symbol_drop` | `1` |
+| `backtest_benchmark` | `SPY` |
 | `use_comet` | `False` |
-| `epochs`, `batch_size` | start with `10` and `32` for mini |
+| `epochs`, `batch_size` | `10`, `32` for mini |
 
-The validation window deliberately starts four months before the training
-window ends, so the first validation samples have the full 90-bar lookback. The
-test window is disjoint from both.
+The validation window deliberately starts before the training window ends, so
+the first validation samples have the full 90-bar lookback. The test window is
+the untouched holdout and is disjoint from both.
 
-Three source edits are required because the Kronos demo targets A-shares:
+Two source edits are still required because the Kronos demo targets A-shares:
 
 1. `finetune/qlib_data_preprocess.py` and `finetune/qlib_test.py`: replace
    `REG_CN` with `REG_US` in both the import and the `qlib.init` call.
-2. `finetune/config.py`: `_set_benchmark("all")` raises. Replace
-   `self.backtest_benchmark = self._set_benchmark(self.instrument)` with
-   `self.backtest_benchmark = "SPY"`.
-3. `finetune/qlib_test.py`: set `"limit_threshold": None`. The default `0.095`
+2. `finetune/qlib_test.py`: set `"limit_threshold": None`. The default `0.095`
    is an A-share ±10% limit that would wrongly skip US moves.
 
+The generated config already replaces the `_set_benchmark` call with
+`backtest_benchmark = "SPY"`, so that edit is not needed.
+
 Then either run `./artifacts/kronos-mini/train.sh` or re-run the planner with
-`--run`.
+`--run --install-config`.
 
 Model sizes: `mini` 4.1M (4–8 GB), `small` 24.7M (8–16 GB), `base` 102.3M
 (16–24 GB). Start with `mini`; only scale up if the evaluation gate passes.

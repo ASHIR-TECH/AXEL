@@ -409,10 +409,12 @@ git clone https://github.com/microsoft/qlib.git ../qlib
   --bars data/kronos/bars.csv --out data/kronos/qlib_csv \
   --qlib-dir data/kronos/qlib --qlib-script ../qlib/scripts/dump_bin.py --freq day
 
-# 4. Plan the Kronos run (validates folds, writes train.sh)
+# 4. Plan the Kronos run: validate folds, generate + install finetune/config.py,
+#    write train_plan.json and train.sh
 .venv/bin/python scripts/train_kronos.py \
   --folds data/kronos/folds/folds.json --kronos-repo ../Kronos \
-  --out artifacts/kronos-mini --variant mini --gpus 1 --device cuda:0
+  --out artifacts/kronos-mini --data-root data/kronos \
+  --variant mini --gpus 1 --device cuda:0 --install-config
 
 # 5. Evaluate on the holdout only
 .venv/bin/python scripts/evaluate_forecasts.py \
@@ -433,6 +435,20 @@ git clone https://github.com/microsoft/qlib.git ../qlib
 
 The full runbook, including `finetune/config.py` settings, is
 `training/kronos/README.md`.
+
+Two things about step 4:
+
+- Kronos does **not** read `folds.json`. It reads the Qlib binary data at
+  `qlib_data_path` in `finetune/config.py`. `train_kronos.py` generates that
+  config from the fold manifest and `--install-config` writes it into the
+  Kronos checkout (keeping `config.py.orig`). `--run` refuses to start unless
+  the config was installed, so it cannot silently train on the Kronos demo
+  data.
+- `--data-root` (default `data/kronos`) locates `qlib/`, `bars.csv` and
+  `processed/`. Override it if you copied the data elsewhere on the GPU host.
+
+`train_plan.json` records the exact source CSV, Qlib path, symbols, windows and
+commands that were used, so the run is reproducible from the artifact alone.
 
 ---
 
