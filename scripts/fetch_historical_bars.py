@@ -14,8 +14,10 @@ from axel.core.config import settings
 from axel.data.historical import fetch_to_csv
 from axel.data.providers.alpaca import AlpacaMarketData
 from axel.data.providers.equibles import EquiblesMarketData
+from axel.data.providers.finnhub import FinnhubMarketData
 from axel.data.providers.keypool import pool_from_pairs
 from axel.data.providers.massive import MassiveMarketData
+from axel.data.providers.twelve_data import TwelveDataMarketData
 
 
 def _timestamp(value: str) -> datetime:
@@ -34,7 +36,7 @@ def main() -> int:
     parser.add_argument("--timeframe", default="1Hour", help="Alpaca timeframe (default: 1Hour)")
     parser.add_argument(
         "--provider",
-        choices=("alpaca", "equibles", "massive"),
+        choices=("alpaca", "equibles", "massive", "twelve_data", "finnhub"),
         default="alpaca",
         help="market-data source (default: alpaca)",
     )
@@ -42,7 +44,7 @@ def main() -> int:
         "--adjustment",
         choices=("raw", "split", "all"),
         default="split",
-        help="price adjustment for Alpaca (default: split; use all to include dividends)",
+        help="price adjustment (default: split; use all to include dividends)",
     )
     args = parser.parse_args()
 
@@ -75,6 +77,30 @@ def main() -> int:
         provider = MassiveMarketData(
             api_key=massive_key,
             base_url=settings.massive_base_url,
+        )
+    elif args.provider == "twelve_data":
+        twelve_key = (
+            settings.twelve_data_api_key.get_secret_value()
+            if settings.twelve_data_api_key
+            else ""
+        )
+        if not twelve_key:
+            raise SystemExit("TWELVE_DATA_API_KEY is required for the twelve_data provider")
+        provider = TwelveDataMarketData(
+            api_key=twelve_key,
+            base_url=settings.twelve_data_base_url,
+            adjustment={"raw": "none", "split": "splits", "all": "all"}[args.adjustment],
+        )
+    elif args.provider == "finnhub":
+        finnhub_key = (
+            settings.finnhub_api_key.get_secret_value() if settings.finnhub_api_key else ""
+        )
+        if not finnhub_key:
+            raise SystemExit("FINNHUB_API_KEY is required for the finnhub provider")
+        print("note      Finnhub historical candles require a paid plan")
+        provider = FinnhubMarketData(
+            api_key=finnhub_key,
+            base_url=settings.finnhub_base_url,
         )
     else:
         pairs = settings.alpaca_credentials()
