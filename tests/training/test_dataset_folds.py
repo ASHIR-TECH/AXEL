@@ -74,6 +74,30 @@ def test_write_folds_and_holdout_round_trip(tmp_path: Path) -> None:
     assert {bar.symbol for bar in train_bars} == {"AAPL", "MSFT"}
 
 
+def test_write_folds_records_holdout_block(tmp_path: Path) -> None:
+    bars = _bars("AAPL") + _bars("MSFT")
+    plans, folds = prepare_folds(bars, train_size=10, test_size=5)
+    holdout = {
+        "start": "2024-01-02T00:00:00+00:00",
+        "end": "2024-01-03T00:00:00+00:00",
+        "rows": 12,
+    }
+
+    manifest_path = write_folds(bars, plans, folds, tmp_path, holdout=holdout)
+
+    payload = json.loads(manifest_path.read_text())
+    assert payload["holdout"] == holdout
+
+
+def test_write_folds_omits_holdout_when_absent(tmp_path: Path) -> None:
+    bars = _bars("AAPL") + _bars("MSFT")
+    plans, folds = prepare_folds(bars, train_size=10, test_size=5)
+
+    manifest_path = write_folds(bars, plans, folds, tmp_path)
+
+    assert "holdout" not in json.loads(manifest_path.read_text())
+
+
 def test_write_holdout_requires_two_timestamps(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         write_holdout(_bars(count=1), tmp_path)

@@ -84,6 +84,8 @@ def write_folds(
     plans: list[FoldPlan],
     folds: list[Fold],
     out_dir: Path,
+    *,
+    holdout: dict[str, object] | None = None,
 ) -> Path:
     """Write ``fold_NN/train.csv``, ``fold_NN/test.csv`` and ``folds.json``."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -94,12 +96,14 @@ def write_folds(
         fold_dir = out_dir / f"fold_{plan.index:02d}"
         write_bars_csv([bar for bar in bars if bar.timestamp in train_set], fold_dir / "train.csv")
         write_bars_csv([bar for bar in bars if bar.timestamp in test_set], fold_dir / "test.csv")
-    manifest = {
+    manifest: dict[str, object] = {
         "schema_version": "axel-folds-1",
         "timestamp_count": len(stamps),
         "symbols": sorted({bar.symbol for bar in bars}),
         "folds": [plan.to_dict() for plan in plans],
     }
+    if holdout is not None:
+        manifest["holdout"] = holdout
     path = out_dir / "folds.json"
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
