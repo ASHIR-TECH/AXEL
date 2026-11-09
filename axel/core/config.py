@@ -33,6 +33,14 @@ class AxelSettings(BaseSettings):
     # Broker: Alpaca (Equities)
     alpaca_api_key: SecretStr | None = None
     alpaca_secret_key: SecretStr | None = None
+    # Additional read-only market-data account. Rotating accounts is a
+    # data-side concern only; execution still uses the primary pair.
+    alpaca_api_key_2: SecretStr | None = None
+    alpaca_secret_key_2: SecretStr | None = None
+    # Optional catch-all: comma-separated ``key:secret`` pairs.
+    alpaca_api_keys: SecretStr | None = None
+    alpaca_key_strategy: Literal["failover", "round_robin", "random"] = "failover"
+    alpaca_key_cooldown_seconds: float = 60.0
     alpaca_paper: bool = True
     alpaca_base_url: str = "https://paper-api.alpaca.markets"
 
@@ -56,6 +64,8 @@ class AxelSettings(BaseSettings):
     # Data providers. These are read-only credentials; execution stays isolated.
     fred_api_key: SecretStr | None = None
     sec_user_agent: str | None = None
+    equibles_api_key: SecretStr | None = None
+    equibles_base_url: str = "https://api.equibles.com/v1"
 
     # Monitoring / alerting. All defaults keep the exporter and relay bound to
     # loopback when run outside Docker; Compose overrides the bind address.
@@ -121,6 +131,44 @@ class AxelSettings(BaseSettings):
             # Fall back safely
             object.__setattr__(self, "alpaca_paper", True)
         return self
+
+    def alpaca_credentials(self) -> list[tuple[str, str]]:
+        """Return every complete, de-duplicated Alpaca credential pair.
+
+        The primary pair is first, then ``ALPACA_API_KEY_2`` and finally any
+        pairs in ``ALPACA_API_KEYS``. Incomplete pairs are skipped so an
+        optional second account cannot prevent the first from starting.
+        """
+        pairs: list[tuple[str, str]] = []
+        seen: set[str] = set()
+
+        def add(key: SecretStr | None, secret: SecretStr | None) -> None:
+            if key is None or secret is None:
+                return
+            key_id = key.get_secret_value().strip()
+            key_secret = secret.get_secret_value().strip()
+            if not key_id or not key_secret or key_id in seen:
+                return
+            seen.add(key_id)
+            pairs.append((key_id, key_secret))
+
+        add(self.alpaca_api_key, self.alpaca_secret_key)
+        add(self.alpaca_api_key_2, self.alpaca_secret_key_2)
+        if self.alpaca_api_keys is not None:
+            for entry in self.alpaca_api_keys.get_secret_value().split(","):
+                entry = entry.strip()
+                if not entry:
+                    continue
+                key_id, separator, key_secret = entry.partition(":")
+                if not separator or not key_id.strip() or not key_secret.strip():
+                    raise ValueError(
+                        "ALPACA_API_KEYS entries must be 'key:secret' pairs separated by commas"
+                    )
+                if key_id.strip() in seen:
+                    continue
+                seen.add(key_id.strip())
+                pairs.append((key_id.strip(), key_secret.strip()))
+        return pairs
 
     def is_live_permitted(self) -> bool:
         """Returns True only when all explicit live confirmations are met."""
