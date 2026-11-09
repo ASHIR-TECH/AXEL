@@ -130,6 +130,43 @@ key on each request.
 SEC EDGAR access is keyed by `SEC_USER_AGENT`, which must include a contact
 email: `SEC_USER_AGENT="Your Name you@example.com"`.
 
+Twelve Data provides daily and intraday OHLCV via `apikey`:
+
+```dotenv
+TWELVE_DATA_API_KEY=...
+TWELVE_DATA_BASE_URL=https://api.twelvedata.com
+```
+
+```bash
+.venv/bin/python scripts/fetch_historical_bars.py \
+  --provider twelve_data --timeframe 1Day --adjustment split \
+  --symbols AAPL,MSFT --start 2026-10-01T00:00:00+00:00 \
+  --end 2026-10-10T00:00:00+00:00 --out data/twelve_data_bars.csv
+```
+
+`--adjustment raw|split|all` maps to Twelve Data's `none|splits|all`.
+Intraday timestamps are localized with the response's `exchange_timezone`
+before being converted to UTC.
+
+Finnhub's free tier covers company news, quotes, search and metrics. Historical
+candles are a paid endpoint; the adapter raises that error explicitly instead
+of returning empty bars.
+
+```dotenv
+FINNHUB_API_KEY=...
+FINNHUB_BASE_URL=https://finnhub.io/api/v1
+```
+
+```bash
+.venv/bin/python scripts/fetch_company_news.py \
+  --symbols AAPL,MSFT --start 2026-10-01T00:00:00+00:00 \
+  --end 2026-10-10T00:00:00+00:00 --out data/finnhub_news.jsonl
+```
+
+Finnhub authenticates with the `X-Finnhub-Token` header, so the key does not
+appear in request URLs. News is written as canonical JSONL records with
+provenance and entity hints; the text is treated strictly as data.
+
 Validate that AXEL has linked the selected provider and key correctly, without sending a prompt:
 
 ```bash
