@@ -5,6 +5,7 @@ import pytest
 
 from axel.data.providers import AlpacaMarketData, FredData, GdeltNews, SecEdgar
 from axel.data.providers.alpaca import PAGE_LIMIT
+from axel.data.providers.keypool import Credential, CredentialPool
 
 
 def _client(handler) -> httpx.Client:
@@ -106,6 +107,106 @@ def test_alpaca_fetch_bars_can_request_split_adjustment() -> None:
 def test_alpaca_rejects_unknown_adjustment() -> None:
     with pytest.raises(ValueError):
         AlpacaMarketData("key", "secret", adjustment="dividend")
+
+
+def test_alpaca_rotates_to_the_next_key_after_rate_limit() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        key = request.headers["APCA-API-KEY-ID"]
+        seen.append(key)
+        if key == "key-1":
+            return httpx.Response(
+                429,
+                headers={"Retry-After": "30"},
+                json={"message": "rate limit exceeded"},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "bars": {
+                    "AAPL": [
+                        {"t": "2026-01-02T00:00:00Z", "o": 1, "h": 2, "l": 1, "c": 2, "v": 4}
+                    ]
+                }
+            },
+        )
+
+    pool = CredentialPool(
+        [Credential("key-1", "secret-1"), Credential("key-2", "secret-2")],
+        cooldown_s=60,
+    )
+    provider = AlpacaMarketData(pool=pool, client=_client(handler))
+    result = provider.fetch_bars(
+        "AAPL", datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 3, tzinfo=UTC)
+    )
+
+    assert [record.close for record in result.records] == [2.0]
+    assert seen == ["key-1", "key-2"]
+    assert pool.available_count() == 1
+    assert dict(result.raw.context)["credentials"] == "2"
+
+
+def test_alpaca_restarts_pagination_on_the_next_key_without_duplicates() -> None:
+    pages = {"key-1": 0, "key-2": 0}
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        key = request.headers["APCA-API-KEY-ID"]
+        pages[key] += 1
+        token = request.url.params.get("page_token", "")
+        seen.append((key, token))
+        if key == "key-1" and pages[key] == 2:
+            return httpx.Response(429, json={"message": "rate limit"})
+        if not token:
+            return httpx.Response(
+                200,
+                json={
+                    "bars": {
+                        "AAPL": [
+                            {"t": "2026-01-02T00:00:00Z", "o": 1, "h": 2, "l": 1, "c": 2, "v": 4}
+                        ]
+                    },
+                    "next_page_token": "page-2",
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "bars": {
+                    "AAPL": [
+                        {"t": "2026-01-05T00:00:00Z", "o": 2, "h": 3, "l": 2, "c": 3, "v": 5}
+                    ]
+                }
+            },
+        )
+
+    pool = CredentialPool([Credential("key-1", "s1"), Credential("key-2", "s2")])
+    provider = AlpacaMarketData(pool=pool, client=_client(handler))
+    result = provider.fetch_bars(
+        "AAPL", datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 6, tzinfo=UTC)
+    )
+
+    assert [record.close for record in result.records] == [2.0, 3.0]
+    assert seen == [
+        ("key-1", ""),
+        ("key-1", "page-2"),
+        ("key-2", ""),
+        ("key-2", "page-2"),
+    ]
+
+
+def test_alpaca_all_keys_exhausted_surfaces_the_429() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"message": "rate limit"})
+
+    pool = CredentialPool([Credential("only", "secret")], cooldown_s=60)
+    provider = AlpacaMarketData(pool=pool, client=_client(handler))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch_bars(
+            "AAPL", datetime(2026, 1, 1, tzinfo=UTC), datetime(2026, 1, 3, tzinfo=UTC)
+        )
 
 
 def test_fred_fetch_observations_carry_vintage() -> None:
