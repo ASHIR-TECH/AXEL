@@ -13,6 +13,8 @@ from pathlib import Path
 from axel.core.config import settings
 from axel.data.historical import fetch_to_csv
 from axel.data.providers.alpaca import AlpacaMarketData
+from axel.data.providers.equibles import EquiblesMarketData
+from axel.data.providers.keypool import pool_from_pairs
 
 
 def _timestamp(value: str) -> datetime:
@@ -30,24 +32,49 @@ def main() -> int:
     parser.add_argument("--end", required=True, help="ISO timestamp with timezone")
     parser.add_argument("--timeframe", default="1Hour", help="Alpaca timeframe (default: 1Hour)")
     parser.add_argument(
+        "--provider",
+        choices=("alpaca", "equibles"),
+        default="alpaca",
+        help="market-data source (default: alpaca)",
+    )
+    parser.add_argument(
         "--adjustment",
         choices=("raw", "split", "all"),
         default="split",
-        help="price adjustment (default: split; use all to include dividends)",
+        help="price adjustment for Alpaca (default: split; use all to include dividends)",
     )
     args = parser.parse_args()
 
-    api_key = settings.alpaca_api_key.get_secret_value() if settings.alpaca_api_key else ""
-    secret_key = (
-        settings.alpaca_secret_key.get_secret_value() if settings.alpaca_secret_key else ""
-    )
-    if not api_key or not secret_key:
-        raise SystemExit("ALPACA_API_KEY and ALPACA_SECRET_KEY are required for market data")
-
     symbols = [item.strip().upper() for item in args.symbols.split(",") if item.strip()]
-    provider = AlpacaMarketData(
-        api_key=api_key, secret_key=secret_key, adjustment=args.adjustment
-    )
+    if not symbols:
+        raise SystemExit("--symbols must contain at least one symbol")
+
+    if args.provider == "equibles":
+        equibles_key = (
+            settings.equibles_api_key.get_secret_value() if settings.equibles_api_key else ""
+        )
+        if not equibles_key:
+            raise SystemExit("EQUIBLES_API_KEY is required for the equibles provider")
+        if args.timeframe != "1Day":
+            raise SystemExit("Equibles supports daily bars only; use --timeframe 1Day")
+        provider = EquiblesMarketData(
+            api_key=equibles_key, base_url=settings.equibles_base_url
+        )
+    else:
+        pairs = settings.alpaca_credentials()
+        if not pairs:
+            raise SystemExit("ALPACA_API_KEY and ALPACA_SECRET_KEY are required for market data")
+        provider = AlpacaMarketData(
+            pool=pool_from_pairs(
+                pairs,
+                strategy=settings.alpaca_key_strategy,
+                cooldown_s=settings.alpaca_key_cooldown_seconds,
+            ),
+            adjustment=args.adjustment,
+        )
+        if len(pairs) > 1:
+            print(f"keys      {len(pairs)} ({settings.alpaca_key_strategy})")
+
     rows, content_hash = fetch_to_csv(
         provider,
         symbols,
