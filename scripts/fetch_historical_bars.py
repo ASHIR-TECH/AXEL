@@ -1,4 +1,4 @@
-"""Fetch historical bars from Alpaca into the training CSV schema.
+"""Fetch historical bars from a read-only provider into the training CSV schema.
 
 Read-only market data only. This script never places an order and does not use
 the broker trading endpoint.
@@ -15,6 +15,7 @@ from axel.data.historical import fetch_to_csv
 from axel.data.providers.alpaca import AlpacaMarketData
 from axel.data.providers.equibles import EquiblesMarketData
 from axel.data.providers.keypool import pool_from_pairs
+from axel.data.providers.massive import MassiveMarketData
 
 
 def _timestamp(value: str) -> datetime:
@@ -33,7 +34,7 @@ def main() -> int:
     parser.add_argument("--timeframe", default="1Hour", help="Alpaca timeframe (default: 1Hour)")
     parser.add_argument(
         "--provider",
-        choices=("alpaca", "equibles"),
+        choices=("alpaca", "equibles", "massive"),
         default="alpaca",
         help="market-data source (default: alpaca)",
     )
@@ -50,15 +51,30 @@ def main() -> int:
         raise SystemExit("--symbols must contain at least one symbol")
 
     if args.provider == "equibles":
-        equibles_key = (
-            settings.equibles_api_key.get_secret_value() if settings.equibles_api_key else ""
-        )
-        if not equibles_key:
+        pairs = settings.equibles_credentials()
+        if not pairs:
             raise SystemExit("EQUIBLES_API_KEY is required for the equibles provider")
         if args.timeframe != "1Day":
             raise SystemExit("Equibles supports daily bars only; use --timeframe 1Day")
         provider = EquiblesMarketData(
-            api_key=equibles_key, base_url=settings.equibles_base_url
+            pool=pool_from_pairs(
+                pairs,
+                strategy=settings.equibles_key_strategy,
+                cooldown_s=settings.equibles_key_cooldown_seconds,
+            ),
+            base_url=settings.equibles_base_url,
+        )
+        if len(pairs) > 1:
+            print(f"keys      {len(pairs)} ({settings.equibles_key_strategy})")
+    elif args.provider == "massive":
+        massive_key = (
+            settings.massive_api_key.get_secret_value() if settings.massive_api_key else ""
+        )
+        if not massive_key:
+            raise SystemExit("MASSIVE_API_KEY is required for the massive provider")
+        provider = MassiveMarketData(
+            api_key=massive_key,
+            base_url=settings.massive_base_url,
         )
     else:
         pairs = settings.alpaca_credentials()
