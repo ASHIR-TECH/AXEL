@@ -27,8 +27,15 @@ def main() -> int:
     plans, folds = prepare_folds(
         bars, train_size=args.train_size, test_size=args.test_size, step=args.step
     )
-    path = write_folds(bars, plans, folds, args.out)
     train_path, test_path = write_holdout(bars, args.out / "holdout", test_fraction=args.holdout_fraction)
+    holdout_bars = load_bars_csv(test_path)
+    holdout_stamps = sorted({bar.timestamp for bar in holdout_bars})
+    holdout = {
+        "start": holdout_stamps[0].isoformat(),
+        "end": holdout_stamps[-1].isoformat(),
+        "rows": len(holdout_bars),
+    }
+    path = write_folds(bars, plans, folds, args.out, holdout=holdout)
 
     print(f"symbols   {len({bar.symbol for bar in bars})}")
     print(f"bars      {len(bars)}")
