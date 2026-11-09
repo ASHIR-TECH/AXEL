@@ -12,9 +12,11 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -617,3 +619,51 @@ class OperationalEventModel(Base):
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), index=True, nullable=False
     )
+
+
+class WorkerHeartbeatModel(Base):
+    """Liveness record for every long-running runtime worker.
+
+    One row per worker name, overwritten on every cycle. The paper soak uses
+    these rows to prove that operation was continuous instead of assuming that
+    wall-clock time since a start date was covered.
+    """
+
+    __tablename__ = "worker_heartbeats"
+
+    worker: Mapped[str] = mapped_column(String(64), primary_key=True)
+    cycles: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    interval_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    # Accumulated wall-clock time the worker was not running, detected when it
+    # resumes after a longer-than-expected gap. This is what turns "56 days
+    # since the start date" into provable coverage.
+    downtime_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    gap_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    version: Mapped[str | None] = mapped_column(String(64))
+
+
+# ── Time-series access paths ─────────────────────────────────────────────────
+# These indexes match the queries the runtime and dashboard actually issue.
+# Single-column indexes on ``symbol``/``timestamp`` alone force a sort after
+# the index scan, which degrades as the soak accumulates tens of millions of
+# bars. The composite indexes let the planner walk the index in timestamp
+# order for a single symbol/section.
+#
+# ``upper(section)`` expression indexes keep the case-insensitive dashboard
+# filters indexable. The columns are NOT NULL, so no ``coalesce`` is needed.
+
+Index("ix_ohlcv_bars_symbol_timestamp", OhlcvBar.symbol, OhlcvBar.timestamp)
+Index("ix_signals_section_ts", SignalModel.section, SignalModel.ts)
+Index("ix_equity_snapshots_section_timestamp", EquitySnapshotModel.section, EquitySnapshotModel.timestamp)
+Index(
+    "ix_equity_snapshots_section_upper_timestamp",
+    func.upper(EquitySnapshotModel.section),
+    EquitySnapshotModel.timestamp,
+)
+Index(
+    "ix_positions_section_upper",
+    func.upper(PositionModel.section),
+)
+Index("ix_audit_log_event_type_timestamp", AuditLogModel.event_type, AuditLogModel.timestamp)

@@ -17,6 +17,13 @@ This deploys a **paper-only** worker, TimescaleDB, Redis, and the read-only dash
    ```
 
 5. Add only paper Alpaca credentials. If using an agent, add either Qwen or Groq configuration, never both as the selected provider.
+6. Set the soak cadence. The default 5-second interval writes roughly a million
+   rows per day; 60 seconds is enough for a paper soak and cuts market-data
+   writes by 12×:
+
+   ```dotenv
+   PAPER_RUNTIME_INTERVAL_SECONDS=60
+   ```
 
 ## Launch
 
@@ -42,10 +49,15 @@ docker compose --profile paper logs --tail=100 paper-soak api ingest-worker agen
 docker compose --profile paper ps
 ```
 
-The workers refuse to start if any runtime setting is not paper-only. The
-paper-soak process writes a heartbeat every minute; Docker restarts it after an
-unexpected failure. The dashboard header must show `LIVE` when the API feed is
-connected.
+The workers refuse to start if any runtime setting is not paper-only. Every
+runtime worker records a heartbeat each cycle, so continuity is provable rather
+than assumed. Docker restarts a failed worker automatically. The dashboard
+header must show `LIVE` when the API feed is connected.
+
+```bash
+# Coverage against the 56-day gate (least-continuous worker wins)
+docker compose exec core-worker python scripts/soak_status.py --minimum-days 56
+```
 
 ## Operations
 
@@ -54,6 +66,11 @@ connected.
 - Run the kill-switch drill at least once every 30 days.
 - Backup the TimescaleDB volume before upgrades.
 - Never expose the database port (`5432`) or Redis port (`6379`) publicly. In production, remove their host `ports:` mappings or firewall them to your private network.
+- Run retention nightly: `docker compose exec core-worker python scripts/prune_operational_data.py`.
+- Check soak coverage weekly: `scripts/soak_status.py --minimum-days 56`.
+- Generate the initial Alembic revision before starting the soak. Until then,
+  the `migrate` service uses `init_db()` and later index changes will not reach
+  an existing database.
 
 ## Current scope
 

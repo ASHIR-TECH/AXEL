@@ -18,8 +18,9 @@ from axel.db.models import NewsItem, OhlcvBar
 from axel.runtime import audit
 from axel.runtime.paper_feed import (
     all_symbols,
+    latest_prices,
     next_bar,
-    persist_bar,
+    persist_bars,
 )
 
 _NEWS_SOURCES: tuple[tuple[str, str, str], ...] = (
@@ -69,17 +70,22 @@ def ingest_once(
     interval = interval_seconds or settings.paper_runtime_interval_seconds
     run_seed = seed if seed is not None else settings.paper_runtime_seed
 
-    written = 0
-    for symbol in all_symbols():
-        bar = next_bar(
+    symbols = all_symbols()
+    # One query for every previous close, one batched insert for the cycle.
+    # The previous implementation issued two SELECTs and one INSERT per bar.
+    previous = latest_prices(session, symbols)
+    bars = [
+        next_bar(
             session,
             symbol,
             stamp,
             interval_seconds=interval,
             seed=run_seed,
+            previous_price=previous.get(symbol),
         )
-        persist_bar(session, bar, interval_seconds=interval)
-        written += 1
+        for symbol in symbols
+    ]
+    written = persist_bars(session, bars, interval_seconds=interval)
 
     news = _ensure_news(session, stamp, run_seed)
     audit.record(

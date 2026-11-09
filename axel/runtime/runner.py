@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from axel.core.config import settings
 from axel.db.session import SessionLocal, init_db
+from axel.runtime.heartbeat import record_heartbeat
 
 Step = Callable[[Session, datetime, int, float], Any]
 
@@ -67,6 +68,15 @@ def run_worker(step: Step, description: str) -> int:
         now = datetime.now(UTC)
         with SessionLocal() as session:
             result = step(session, now, args.seed, interval)
+            # Written in the same transaction as the cycle's work: a heartbeat
+            # only survives if the work it describes was durable.
+            record_heartbeat(
+                session,
+                description,
+                cycles=completed + 1,
+                interval_seconds=interval,
+                now=now,
+            )
             session.commit()
         completed += 1
         print(f"[{description}] cycle={completed} {result}", flush=True)

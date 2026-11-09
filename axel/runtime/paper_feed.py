@@ -15,7 +15,7 @@ import random
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from axel.db.models import OhlcvBar
@@ -134,6 +134,32 @@ def latest_price(session: Session, symbol: str) -> float | None:
     return float(bar.close) if bar is not None else None
 
 
+def latest_prices(session: Session, symbols: tuple[str, ...] | list[str]) -> dict[str, float]:
+    """Return the most recent close for each symbol in a single query.
+
+    The ingest worker needs the previous close for every symbol before it can
+    generate the next bar. Querying one symbol at a time turns a 30-symbol
+    cycle into 30 round trips; this uses a window function so the composite
+    ``(symbol, timestamp)`` index is walked once per partition.
+    """
+    wanted = list(dict.fromkeys(symbols))
+    if not wanted:
+        return {}
+    ranked = (
+        select(
+            OhlcvBar.symbol.label("symbol"),
+            OhlcvBar.close.label("close"),
+            func.row_number()
+            .over(partition_by=OhlcvBar.symbol, order_by=OhlcvBar.timestamp.desc())
+            .label("rank"),
+        )
+        .where(OhlcvBar.symbol.in_(wanted))
+        .subquery()
+    )
+    stmt = select(ranked.c.symbol, ranked.c.close).where(ranked.c.rank == 1)
+    return {str(symbol): float(close) for symbol, close in session.execute(stmt)}
+
+
 def recent_closes(session: Session, symbol: str, limit: int = 40) -> list[float]:
     stmt = (
         select(OhlcvBar.close)
@@ -146,23 +172,34 @@ def recent_closes(session: Session, symbol: str, limit: int = 40) -> list[float]
     return rows
 
 
+_UNSET: object = object()
+
+
 def next_bar(
-    session: Session,
+    session: Session | None,
     symbol: str,
     timestamp: datetime,
     *,
     interval_seconds: float,
     seed: int,
+    previous_price: float | None | object = _UNSET,
 ) -> SyntheticBar:
     """Generate the next bar from the last persisted close.
 
     The RNG is seeded by ``(seed, symbol, timestamp bucket)`` so repeated calls
     in the same bucket are idempotent and a restart cannot invent a different
     price for an already-recorded timestamp.
+
+    ``previous_price`` lets the ingest worker pass the close it already fetched
+    in a batch, avoiding one ``SELECT`` per symbol per cycle. When omitted the
+    latest bar is read from the database.
     """
     spec = instrument_spec(symbol)
-    previous = latest_price(session, symbol)
-    open_price = previous if previous is not None else spec.base_price
+    if previous_price is _UNSET:
+        previous = latest_price(session, symbol) if session is not None else None
+    else:
+        previous = previous_price
+    open_price = previous if isinstance(previous, (int, float)) else spec.base_price
 
     bucket = int(timestamp.timestamp() // max(0.001, interval_seconds))
     rng = random.Random(f"{seed}:{symbol}:{bucket}")
@@ -192,27 +229,70 @@ def bar_id(symbol: str, timestamp: datetime, interval_seconds: float) -> str:
     return f"bar_{safe}_{bucket}"
 
 
-def persist_bar(session: Session, bar: SyntheticBar, *, interval_seconds: float) -> OhlcvBar:
-    """Insert one bar idempotently; returns the stored row."""
-    identifier = bar_id(bar.symbol, bar.timestamp, interval_seconds)
-    existing = session.get(OhlcvBar, identifier)
-    if existing is not None:
-        return existing
-    row = OhlcvBar(
-        id=identifier,
-        symbol=bar.symbol,
-        timestamp=bar.timestamp,
-        ingestion_time=datetime.now(UTC),
-        timeframe="1m",
-        open=bar.open,
-        high=bar.high,
-        low=bar.low,
-        close=bar.close,
-        volume=bar.volume,
-        vwap=round((bar.high + bar.low + bar.close) / 3.0, 6),
-    )
-    session.add(row)
-    return row
+def _bar_values(
+    bar: SyntheticBar, interval_seconds: float, *, ingested_at: datetime
+) -> dict[str, object]:
+    return {
+        "id": bar_id(bar.symbol, bar.timestamp, interval_seconds),
+        "symbol": bar.symbol,
+        "timestamp": bar.timestamp,
+        "ingestion_time": ingested_at,
+        "timeframe": "1m",
+        "open": bar.open,
+        "high": bar.high,
+        "low": bar.low,
+        "close": bar.close,
+        "volume": bar.volume,
+        "vwap": round((bar.high + bar.low + bar.close) / 3.0, 6),
+    }
+
+
+def _idempotent_insert(dialect_name: str):
+    """Return a dialect INSERT ... ON CONFLICT DO NOTHING, or None if unsupported.
+
+    Both PostgreSQL and SQLite support the clause, so the hot path never has to
+    issue a ``SELECT`` before every insert. The fallback keeps other dialects
+    (and exotic test engines) working.
+    """
+    if dialect_name == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+    elif dialect_name == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert
+    else:
+        return None
+    return insert(OhlcvBar).on_conflict_do_nothing(index_elements=["id"])
+
+
+def persist_bars(
+    session: Session, bars: list[SyntheticBar], *, interval_seconds: float
+) -> int:
+    """Insert many bars in one round trip, ignoring already-stored buckets."""
+    if not bars:
+        return 0
+    ingested_at = datetime.now(UTC)
+    rows = [_bar_values(bar, interval_seconds, ingested_at=ingested_at) for bar in bars]
+    statement = _idempotent_insert(session.get_bind().dialect.name)
+    if statement is None:
+        for row in rows:
+            if session.get(OhlcvBar, row["id"]) is None:
+                session.add(OhlcvBar(**row))
+        return len(rows)
+    session.execute(statement, rows)
+    return len(rows)
+
+
+def persist_bar(session: Session, bar: SyntheticBar, *, interval_seconds: float) -> bool:
+    """Insert one bar idempotently; returns True when the row was newly written."""
+    ingested_at = datetime.now(UTC)
+    row = _bar_values(bar, interval_seconds, ingested_at=ingested_at)
+    statement = _idempotent_insert(session.get_bind().dialect.name)
+    if statement is None:
+        if session.get(OhlcvBar, row["id"]) is not None:
+            return False
+        session.add(OhlcvBar(**row))
+        return True
+    result = session.execute(statement.values(**row))
+    return (result.rowcount or 0) > 0
 
 
 __all__ = [
@@ -224,7 +304,9 @@ __all__ = [
     "instrument_spec",
     "latest_bar",
     "latest_price",
+    "latest_prices",
     "next_bar",
     "persist_bar",
+    "persist_bars",
     "recent_closes",
 ]

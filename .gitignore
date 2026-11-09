@@ -49,6 +49,10 @@ repos/
 *.sqlite3
 data/timescaledb/
 data/redis/
+
+# Training data and model artifacts (regenerated, never committed)
+data/kronos/
+artifacts/
 .axel_killswitch.json
 .axel_halt.json
 

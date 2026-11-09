@@ -22,8 +22,10 @@ from axel.data.providers.base import (
 )
 from axel.data.providers.binance import BinancePublicMarketData
 from axel.data.providers.deribit import DeribitOptionsMarketData
+from axel.data.providers.equibles import EquiblesMarketData, parse_prices
 from axel.data.providers.fred import FredData, parse_observations
 from axel.data.providers.kalshi import KalshiPredictionMarketData
+from axel.data.providers.massive import MassiveMarketData, parse_aggregates
 from axel.data.providers.news import GdeltNews, parse_news
 from axel.data.providers.oanda import OandaMarketData
 from axel.data.providers.retry import (
@@ -50,10 +52,12 @@ __all__ = [
     "CapabilityAwareProvider",
     "CapabilityError",
     "DeribitOptionsMarketData",
+    "EquiblesMarketData",
     "FredData",
     "GdeltNews",
     "KalshiPredictionMarketData",
     "MarketDataProvider",
+    "MassiveMarketData",
     "OandaMarketData",
     "Provider",
     "ProviderCapabilities",
@@ -69,10 +73,12 @@ __all__ = [
     "is_retryable_exception",
     "is_retryable_status",
     "now_utc",
+    "parse_aggregates",
     "parse_bars",
     "parse_filings",
     "parse_news",
     "parse_observations",
+    "parse_prices",
     "parse_retry_after",
     "plan_retry",
     "require_api_key",

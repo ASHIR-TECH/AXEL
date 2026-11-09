@@ -39,6 +39,7 @@ from axel.data.ml.risk_model import (
 )
 from axel.data.providers.alpaca import AlpacaMarketData
 from axel.data.providers.fred import FredData
+from axel.data.providers.keypool import pool_from_pairs
 from axel.data.providers.sec import SecEdgar
 from axel.data.schemas import BarRecord, CanonicalRecord
 
@@ -184,12 +185,22 @@ def _assert_risk_model(bars: list[BarRecord]) -> str:
 def verify_alpaca(
     checks: Checks, symbol: str, pipeline: IngestionPipeline, store: CanonicalStore
 ) -> None:
-    api_key = settings.alpaca_api_key
-    secret_key = settings.alpaca_secret_key
-    if not api_key or not secret_key:
+    pairs = settings.alpaca_credentials()
+    if not pairs:
         checks.record("alpaca: credentials configured", False, "missing ALPACA_API_KEY/SECRET_KEY")
         return
-    provider = AlpacaMarketData(api_key.get_secret_value(), secret_key.get_secret_value())
+    checks.expect(
+        "alpaca: credentials configured",
+        True,
+        f"{len(pairs)} account(s), strategy={settings.alpaca_key_strategy}",
+    )
+    provider = AlpacaMarketData(
+        pool=pool_from_pairs(
+            pairs,
+            strategy=settings.alpaca_key_strategy,
+            cooldown_s=settings.alpaca_key_cooldown_seconds,
+        )
+    )
     start, end = _window(LOOKBACK_DAYS)
 
     result = provider.fetch_bars(symbol, start, end, timeframe="1Day")
