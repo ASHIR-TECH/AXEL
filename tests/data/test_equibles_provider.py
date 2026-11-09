@@ -8,6 +8,7 @@ import httpx
 import pytest
 
 from axel.data.providers.equibles import EquiblesMarketData, parse_prices
+from axel.data.providers.keypool import Credential, CredentialPool
 
 START = datetime(2026, 7, 1, tzinfo=UTC)
 END = datetime(2026, 7, 31, tzinfo=UTC)
@@ -89,3 +90,72 @@ def test_fetch_bars_rejects_intraday() -> None:
 def test_requires_api_key() -> None:
     with pytest.raises(ValueError):
         EquiblesMarketData("")
+
+
+def test_rotates_to_the_next_key_after_rate_limit() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        auth = request.headers["Authorization"]
+        seen.append(auth)
+        if auth == "Bearer eq_first":
+            return httpx.Response(
+                429,
+                headers={"Retry-After": "30"},
+                json={"error": "rate limit"},
+            )
+        return httpx.Response(200, json={"data": PAGE_ONE["data"], "meta": {"hasMore": False}})
+
+    pool = CredentialPool(
+        [Credential("eq_first", "eq_first"), Credential("eq_second", "eq_second")],
+        cooldown_s=60,
+    )
+    provider = EquiblesMarketData(pool=pool, client=_client(handler))
+    result = provider.fetch_bars("AAPL", START, END)
+
+    assert seen == ["Bearer eq_first", "Bearer eq_second"]
+    assert [record.close for record in result.records] == [316.22, 315.32]
+    assert dict(result.raw.context)["credentials"] == "2"
+    assert pool.available_count() == 1
+
+
+def test_restarts_pagination_on_the_next_key_without_duplicates() -> None:
+    pages = {"eq_first": 0, "eq_second": 0}
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        token = request.headers["Authorization"].removeprefix("Bearer ")
+        pages[token] += 1
+        offset = request.url.params["offset"]
+        seen.append((token, offset))
+        if token == "eq_first" and pages[token] == 2:
+            return httpx.Response(429, json={"error": "rate limit"})
+        if offset == "0":
+            return httpx.Response(200, json=PAGE_ONE)
+        return httpx.Response(200, json=PAGE_TWO)
+
+    pool = CredentialPool(
+        [Credential("eq_first", "eq_first"), Credential("eq_second", "eq_second")]
+    )
+    provider = EquiblesMarketData(pool=pool, client=_client(handler), page_limit=2)
+    result = provider.fetch_bars("AAPL", START, END)
+
+    assert [record.close for record in result.records] == [316.22, 315.32]
+    # The second key restarts from offset 0, then fetches the final page once.
+    assert seen == [
+        ("eq_first", "0"),
+        ("eq_first", "2"),
+        ("eq_second", "0"),
+        ("eq_second", "2"),
+    ]
+
+
+def test_all_keys_exhausted_surfaces_the_429() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"error": "rate limit"})
+
+    pool = CredentialPool([Credential("eq_only", "eq_only")], cooldown_s=60)
+    provider = EquiblesMarketData(pool=pool, client=_client(handler))
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch_bars("AAPL", START, END)
+
