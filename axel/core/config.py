@@ -119,6 +119,14 @@ class AxelSettings(BaseSettings):
     equibles_key_strategy: Literal["failover", "round_robin", "random"] = "failover"
     equibles_key_cooldown_seconds: float = 60.0
     equibles_base_url: str = "https://api.equibles.com/v1"
+    # Twelve Data: daily/intraday OHLCV via the ``apikey`` query parameter.
+    twelve_data_api_key: SecretStr | None = None
+    twelve_data_base_url: str = "https://api.twelvedata.com"
+    # Finnhub: company news and quotes via the ``X-Finnhub-Token`` header.
+    # Historical candles are a paid-tier endpoint; the adapter reports that
+    # clearly instead of fabricating bars.
+    finnhub_api_key: SecretStr | None = None
+    finnhub_base_url: str = "https://finnhub.io/api/v1"
 
     # Monitoring / alerting. All defaults keep the exporter and relay bound to
     # loopback when run outside Docker; Compose overrides the bind address.

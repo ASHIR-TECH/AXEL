@@ -82,3 +82,15 @@ def test_massive_and_equibles_settings_have_defaults() -> None:
     assert settings.equibles_key_cooldown_seconds == 60.0
     assert settings.equibles_base_url == "https://api.equibles.com/v1"
 
+
+def test_twelve_data_and_finnhub_settings_have_defaults() -> None:
+    settings = _settings(
+        twelve_data_api_key=SecretStr("td-key"),
+        finnhub_api_key=SecretStr("fh-key"),
+    )
+    assert settings.twelve_data_api_key is not None
+    assert settings.twelve_data_base_url == "https://api.twelvedata.com"
+    assert settings.finnhub_api_key is not None
+    assert settings.finnhub_base_url == "https://finnhub.io/api/v1"
+
+
