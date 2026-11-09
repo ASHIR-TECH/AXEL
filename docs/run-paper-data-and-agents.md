@@ -81,12 +81,21 @@ A rate-limited account is quarantined for `Retry-After` when the provider sends
 it, otherwise for `ALPACA_KEY_COOLDOWN_SECONDS`. The pool is process-local and
 thread-safe; secrets never appear in logs or snapshots.
 
-Equibles (daily prices only) is an alternative data source:
+Equibles (daily prices only) is an alternative data source and supports the same
+rotation policy as Alpaca:
 
 ```dotenv
 EQUIBLES_API_KEY=eq_...
+# Optional second key (or use EQUIBLES_API_KEYS=key,key)
+EQUIBLES_API_KEY_2=eq_...
+EQUIBLES_KEY_STRATEGY=failover
+EQUIBLES_KEY_COOLDOWN_SECONDS=60
 EQUIBLES_BASE_URL=https://api.equibles.com/v1
 ```
+
+Equibles keys have no separate secret; the provider repeats the key internally
+so it can reuse the same credential-pool interface. A rate-limited key is
+quarantined exactly like an Alpaca account.
 
 ```bash
 .venv/bin/python scripts/fetch_historical_bars.py \
@@ -97,6 +106,29 @@ EQUIBLES_BASE_URL=https://api.equibles.com/v1
 
 The provider sends the key as `Authorization: Bearer <key>` and refuses
 intraday timeframes rather than returning data that looks valid but is not.
+
+Massive (formerly Polygon.io) provides aggregate OHLCV bars and authenticates
+with the `apiKey` query parameter:
+
+```dotenv
+MASSIVE_API_KEY=...
+MASSIVE_BASE_URL=https://api.massive.com
+```
+
+```bash
+.venv/bin/python scripts/fetch_historical_bars.py \
+  --provider massive --timeframe 1Day \
+  --symbols AAPL,MSFT --start 2026-10-01T00:00:00+00:00 \
+  --end 2026-10-10T00:00:00+00:00 --out data/massive_bars.csv
+```
+
+Massive bars are split-adjusted by default (`adjusted=true`), and the adapter
+records `split_adjusted` on each record so a consumer never mistakes an
+adjusted series for raw prices. Pagination follows `next_url` while keeping the
+key on each request.
+
+SEC EDGAR access is keyed by `SEC_USER_AGENT`, which must include a contact
+email: `SEC_USER_AGENT="Your Name you@example.com"`.
 
 Validate that AXEL has linked the selected provider and key correctly, without sending a prompt:
 
