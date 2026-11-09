@@ -22,6 +22,7 @@ from axel.data.providers.base import (
 )
 from axel.data.providers.binance import BinancePublicMarketData
 from axel.data.providers.deribit import DeribitOptionsMarketData
+from axel.data.providers.equibles import EquiblesMarketData, parse_prices
 from axel.data.providers.fred import FredData, parse_observations
 from axel.data.providers.kalshi import KalshiPredictionMarketData
 from axel.data.providers.news import GdeltNews, parse_news
@@ -50,6 +51,7 @@ __all__ = [
     "CapabilityAwareProvider",
     "CapabilityError",
     "DeribitOptionsMarketData",
+    "EquiblesMarketData",
     "FredData",
     "GdeltNews",
     "KalshiPredictionMarketData",
@@ -73,6 +75,7 @@ __all__ = [
     "parse_filings",
     "parse_news",
     "parse_observations",
+    "parse_prices",
     "parse_retry_after",
     "plan_retry",
     "require_api_key",
