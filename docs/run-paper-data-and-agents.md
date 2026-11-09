@@ -57,6 +57,47 @@ LLM_DAILY_BUDGET_USD=1.00
 
 Qwen's compatible-mode endpoint is region/workspace-specific. Copy the base URL from your Qwen/Model Studio account and set it as `LLM_BASE_URL`; do not use a Groq URL with a Qwen key. Do not select a model name from this document; availability and free tiers change frequently.
 
+### Multiple Alpaca accounts and Equibles
+
+Read-only ingestion can rotate across several Alpaca accounts when one hits its
+rate limit. Execution is unaffected: it still uses the primary pair.
+
+```dotenv
+ALPACA_API_KEY=...
+ALPACA_SECRET_KEY=...
+# Optional second account (or use ALPACA_API_KEYS=key:secret,key:secret)
+ALPACA_API_KEY_2=...
+ALPACA_SECRET_KEY_2=...
+# failover (default) | round_robin | random
+ALPACA_KEY_STRATEGY=failover
+ALPACA_KEY_COOLDOWN_SECONDS=60
+```
+
+- `failover` keeps the current account until it returns `429`, then moves on.
+- `round_robin` cycles on every request.
+- `random` picks uniformly from the accounts not currently rate limited.
+
+A rate-limited account is quarantined for `Retry-After` when the provider sends
+it, otherwise for `ALPACA_KEY_COOLDOWN_SECONDS`. The pool is process-local and
+thread-safe; secrets never appear in logs or snapshots.
+
+Equibles (daily prices only) is an alternative data source:
+
+```dotenv
+EQUIBLES_API_KEY=eq_...
+EQUIBLES_BASE_URL=https://api.equibles.com/v1
+```
+
+```bash
+.venv/bin/python scripts/fetch_historical_bars.py \
+  --provider equibles --timeframe 1Day \
+  --symbols AAPL,MSFT --start 2026-01-01T00:00:00+00:00 \
+  --end 2026-11-09T00:00:00+00:00 --out data/equibles_bars.csv
+```
+
+The provider sends the key as `Authorization: Bearer <key>` and refuses
+intraday timeframes rather than returning data that looks valid but is not.
+
 Validate that AXEL has linked the selected provider and key correctly, without sending a prompt:
 
 ```bash
