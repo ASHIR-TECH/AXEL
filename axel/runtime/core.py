@@ -328,6 +328,10 @@ def _execute(
     order_row.filled_avg_price = fill_price
 
     section = str(proposal.section).upper()
+    # Production sessions disable autoflush, so a position added earlier in this
+    # same cycle is still pending and invisible to ``session.get``. Flush first
+    # so two fills for one symbol merge instead of inserting a duplicate key.
+    session.flush()
     position = session.get(PositionModel, f"pos_{proposal.symbol}")
     if position is None:
         session.add(

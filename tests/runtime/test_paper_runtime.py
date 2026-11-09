@@ -228,6 +228,39 @@ def test_core_approves_executes_and_snapshots(session_factory, killswitch):
         assert global_snapshot.high_water_mark >= global_snapshot.nav
 
 
+def test_core_merges_two_fills_for_the_same_symbol(session_factory, killswitch):
+    """Two proposals for one symbol in a single cycle must not collide on position id.
+
+    Production sessions use ``autoflush=False``; without an explicit flush the
+    second ``session.get`` misses the pending position and inserts a duplicate
+    primary key.
+    """
+    now = datetime(2026, 11, 8, 12, 0, 0, tzinfo=UTC)
+    engine = session_factory.kw["bind"]
+    with session_factory() as seed_session:
+        _seed_bars(seed_session, now, cycles=10)
+        _seed_proposal(seed_session, now + timedelta(seconds=50))
+        _seed_proposal(seed_session, now + timedelta(seconds=50))
+        seed_session.commit()
+
+    with sessionmaker(bind=engine, autoflush=False)() as session:
+        result = core_once(session, now=now + timedelta(seconds=50), killswitch=killswitch)
+        session.commit()
+
+        assert result.evaluated == 2
+        assert result.approved == 2
+        assert result.orders == 2
+        positions = session.execute(select(PositionModel)).scalars().all()
+        assert len(positions) == 1
+        assert positions[0].symbol == "AAPL"
+        approved_qty = sum(
+            row.approved_qty
+            for row in session.execute(select(RiskDecisionModel)).scalars()
+            if row.approved
+        )
+        assert positions[0].qty == pytest.approx(approved_qty)
+
+
 def test_core_rejects_without_creating_an_order(session_factory, killswitch):
     now = datetime(2026, 11, 8, 12, 0, 0, tzinfo=UTC)
     with session_factory() as session:
