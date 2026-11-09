@@ -23,6 +23,7 @@ from axel.data.providers.base import (
 from axel.data.providers.binance import BinancePublicMarketData
 from axel.data.providers.deribit import DeribitOptionsMarketData
 from axel.data.providers.equibles import EquiblesMarketData, parse_prices
+from axel.data.providers.finnhub import FinnhubMarketData, parse_candles, parse_company_news
 from axel.data.providers.fred import FredData, parse_observations
 from axel.data.providers.kalshi import KalshiPredictionMarketData
 from axel.data.providers.massive import MassiveMarketData, parse_aggregates
@@ -42,6 +43,7 @@ from axel.data.providers.retry import (
     retryable_statuses,
 )
 from axel.data.providers.sec import SecEdgar, parse_filings
+from axel.data.providers.twelve_data import TwelveDataMarketData, parse_time_series
 
 __all__ = [
     "DEFAULT_RETRYABLE_STATUS_CODES",
@@ -53,6 +55,7 @@ __all__ = [
     "CapabilityError",
     "DeribitOptionsMarketData",
     "EquiblesMarketData",
+    "FinnhubMarketData",
     "FredData",
     "GdeltNews",
     "KalshiPredictionMarketData",
@@ -68,6 +71,7 @@ __all__ = [
     "RetryDecision",
     "RetryPolicy",
     "SecEdgar",
+    "TwelveDataMarketData",
     "backoff_schedule",
     "delay_for_attempt",
     "is_retryable_exception",
@@ -75,11 +79,14 @@ __all__ = [
     "now_utc",
     "parse_aggregates",
     "parse_bars",
+    "parse_candles",
+    "parse_company_news",
     "parse_filings",
     "parse_news",
     "parse_observations",
     "parse_prices",
     "parse_retry_after",
+    "parse_time_series",
     "plan_retry",
     "require_api_key",
     "retryable_statuses",
