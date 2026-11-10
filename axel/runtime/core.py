@@ -39,6 +39,7 @@ from axel.risk.engine import (
 from axel.risk.killswitch import KillSwitch
 from axel.risk.limits import LIMITS
 from axel.runtime import audit
+from axel.runtime.execution import ExecutionBackend, build_backend
 from axel.runtime.paper_feed import latest_price
 
 INITIAL_EQUITY = 10_000.0
@@ -50,8 +51,6 @@ SECTION_STARTS: dict[str, float] = {
     "PREDICTIONS": 500.0,
 }
 MAX_HOLD_SECONDS = 300
-_SLIPPAGE_BPS = 2.0
-
 
 @dataclass(frozen=True)
 class CycleResult:
@@ -174,42 +173,77 @@ def _close_position(
     now: datetime,
     *,
     reason: str,
-) -> float:
-    """Close one position at ``price``; returns realized P&L."""
+    backend: ExecutionBackend,
+) -> float | None:
+    """Close one position through ``backend``; returns realized P&L or ``None``."""
     sign = 1.0 if str(position.side).upper().startswith("L") else -1.0
-    exit_price = price * (1.0 - sign * _SLIPPAGE_BPS / 10_000.0)
     qty = float(position.qty)
-    pnl = (exit_price - float(position.entry_price)) * qty * sign
     proposal = _proposal_for_symbol(session, position.symbol)
-    if proposal is not None:
-        closing_id = generate_client_order_id(proposal.id, attempt=2)
-        session.add(
-            OrderModel(
-                client_order_id=closing_id,
-                proposal_id=proposal.id,
-                symbol=position.symbol,
-                side="sell" if sign > 0 else "buy",
-                qty=qty,
-                type="market",
-                state="filled",
-                filled_qty=qty,
-                filled_avg_price=exit_price,
-                created_at=now,
-            )
+    if proposal is None:
+        return None
+
+    closing_id = generate_client_order_id(proposal.id, attempt=2)
+    side = OrderSide.SELL if sign > 0 else OrderSide.BUY
+    order = Order(
+        client_order_id=closing_id,
+        proposal_id=proposal.id,
+        symbol=position.symbol,
+        side=side,
+        qty=qty,
+        type=OrderType.MARKET,
+        time_in_force=TimeInForce.DAY,
+        state=OrderState.SUBMITTED,
+        strategy_id=proposal.strategy_id,
+        decision_ref_price=price,
+        decision_ref_ts=now,
+    )
+    report = backend.execute(order, reference_price=price, now=now)
+    if report is None:
+        audit.record(
+            session,
+            event_type="order.deferred",
+            actor="axel.execution.broker",
+            message=f"close {position.symbol} not filled · {reason}",
+            logger="axel.execution.broker",
+            channel="EXEC",
+            level="WARN",
+            timestamp=now,
+            symbol=position.symbol,
+            reason=reason,
         )
-        session.add(
-            FillModel(
-                id=generate_id("fill"),
-                client_order_id=closing_id,
-                symbol=position.symbol,
-                side="sell" if sign > 0 else "buy",
-                qty=qty,
-                price=exit_price,
-                fee=0.0,
-                slippage=abs(exit_price - price),
-                timestamp=now,
-            )
+        return None
+
+    qty = report.qty
+    exit_price = report.price
+    pnl = (exit_price - float(position.entry_price)) * qty * sign
+    session.add(
+        OrderModel(
+            client_order_id=closing_id,
+            proposal_id=proposal.id,
+            broker_order_id=report.broker_order_id,
+            symbol=position.symbol,
+            side=side.value,
+            qty=qty,
+            type=order.type.value,
+            state=report.state,
+            filled_qty=qty,
+            filled_avg_price=exit_price,
+            created_at=now,
         )
+    )
+    session.add(
+        FillModel(
+            id=generate_id("fill"),
+            client_order_id=closing_id,
+            symbol=position.symbol,
+            side=side.value,
+            qty=qty,
+            price=exit_price,
+            fee=report.fee,
+            slippage=abs(exit_price - price),
+            timestamp=now,
+        )
+    )
     audit.record(
         session,
         event_type="trade.closed",
@@ -235,9 +269,15 @@ def _close_position(
     return pnl
 
 
-def manage_positions(session: Session, *, now: datetime | None = None) -> int:
+def manage_positions(
+    session: Session,
+    *,
+    now: datetime | None = None,
+    backend: ExecutionBackend | None = None,
+) -> int:
     """Mark and exit positions at stop, target, or the paper max-hold horizon."""
     stamp = now or datetime.now(UTC)
+    runner = backend or build_backend()
     closed = 0
     for position in _open_positions(session):
         price = latest_price(session, position.symbol)
@@ -262,8 +302,11 @@ def manage_positions(session: Session, *, now: datetime | None = None) -> int:
             reason = "max-hold"
         if reason is None:
             continue
-        _close_position(session, position, price, stamp, reason=reason)
-        closed += 1
+        result = _close_position(
+            session, position, price, stamp, reason=reason, backend=runner
+        )
+        if result is not None:
+            closed += 1
     return closed
 
 
@@ -272,22 +315,24 @@ def _execute(
     proposal: TradeProposalModel,
     decision: RiskDecisionModel,
     now: datetime,
-) -> None:
-    """Persist an approved order and its deterministic paper fill."""
+    backend: ExecutionBackend,
+) -> bool:
+    """Persist an approved order and the fill reported by ``backend``."""
     qty = float(decision.approved_qty)
     if qty <= 0:
         proposal.status = "rejected"
-        return
+        return False
     client_order_id = generate_client_order_id(proposal.id)
     side = OrderSide.BUY if str(proposal.side).lower() in {"buy", "long"} else OrderSide.SELL
+    live_venue = backend.name == "alpaca"
     order = Order(
         client_order_id=client_order_id,
         proposal_id=proposal.id,
         symbol=proposal.symbol,
         side=side,
         qty=qty,
-        type=OrderType.LIMIT,
-        limit_price=float(proposal.entry_price),
+        type=OrderType.MARKET if live_venue else OrderType.LIMIT,
+        limit_price=None if live_venue else float(proposal.entry_price),
         time_in_force=TimeInForce.DAY,
         state=OrderState.SUBMITTED,
         risk_decision_id=decision.id,
@@ -295,21 +340,47 @@ def _execute(
         decision_ref_price=float(proposal.entry_price),
         decision_ref_ts=now,
     )
+    report = backend.execute(order, reference_price=float(proposal.entry_price), now=now)
+    if report is None:
+        # Nothing filled (venue closed or order unfilled): leave it pending so
+        # the next cycle can decide again instead of inventing a fill.
+        proposal.status = "pending"
+        audit.record(
+            session,
+            event_type="order.deferred",
+            actor="axel.execution.broker",
+            message=(
+                f"order not filled {proposal.symbol} {side.value.upper()} "
+                f"{qty:g} · {backend.name}"
+            ),
+            logger="axel.execution.broker",
+            channel="EXEC",
+            level="WARN",
+            timestamp=now,
+            proposal_id=proposal.id,
+            symbol=proposal.symbol,
+            backend=backend.name,
+        )
+        return False
+
+    qty = report.qty
+    fill_price = report.price
     order_row = OrderModel(
         client_order_id=order.client_order_id,
         proposal_id=order.proposal_id,
+        broker_order_id=report.broker_order_id,
         symbol=order.symbol,
         side=side.value,
-        qty=order.qty,
-        type="limit",
+        qty=qty,
+        type=order.type.value,
         limit_price=order.limit_price,
         time_in_force="day",
-        state="submitted",
+        state=report.state,
+        filled_qty=qty,
+        filled_avg_price=fill_price,
         created_at=now,
     )
     session.add(order_row)
-    sign = 1.0 if side is OrderSide.BUY else -1.0
-    fill_price = float(proposal.entry_price) * (1.0 + sign * _SLIPPAGE_BPS / 10_000.0)
     session.add(
         FillModel(
             id=generate_id("fill"),
@@ -318,12 +389,12 @@ def _execute(
             side=side.value,
             qty=qty,
             price=fill_price,
-            fee=0.0,
+            fee=report.fee,
             slippage=abs(fill_price - float(proposal.entry_price)),
             timestamp=now,
         )
     )
-    order_row.state = "filled"
+    order_row.state = report.state
     order_row.filled_qty = qty
     order_row.filled_avg_price = fill_price
 
@@ -373,6 +444,7 @@ def _execute(
         section=section,
         symbol=proposal.symbol,
     )
+    return True
 
 
 def _evaluate_pending(
@@ -382,6 +454,7 @@ def _evaluate_pending(
     engine: SectionRiskAgent,
     halted: bool,
     drawdown_pct: float,
+    backend: ExecutionBackend,
 ) -> tuple[int, int, int, int]:
     """Evaluate pending proposals; returns ``(evaluated, approved, rejected, orders)``."""
     nav, _unrealized = _global_nav(session)
@@ -502,8 +575,8 @@ def _evaluate_pending(
         )
         if decision.approved:
             approved += 1
-            _execute(session, proposal, decision_row, now)
-            orders += 1
+            if _execute(session, proposal, decision_row, now, backend):
+                orders += 1
         else:
             rejected += 1
     return evaluated, approved, rejected, orders
@@ -585,14 +658,16 @@ def core_once(
     now: datetime | None = None,
     engine: SectionRiskAgent | None = None,
     killswitch: KillSwitch | None = None,
+    backend: ExecutionBackend | None = None,
 ) -> CycleResult:
     """Run one deterministic core cycle: mark, exit, evaluate, execute, snapshot."""
     stamp = now or datetime.now(UTC)
     risk_engine = engine or SectionRiskAgent(LIMITS)
     switch = killswitch or KillSwitch()
+    runner = backend or build_backend()
 
     _mark_positions(session)
-    closed = manage_positions(session, now=stamp)
+    closed = manage_positions(session, now=stamp, backend=runner)
 
     nav_before, _unrealized = _global_nav(session)
     previous = _latest_global(session)
@@ -629,6 +704,7 @@ def core_once(
         engine=risk_engine,
         halted=halted,
         drawdown_pct=drawdown,
+        backend=runner,
     )
     _mark_positions(session)
     nav, drawdown = _write_snapshots(session, now=stamp, halted=halted)

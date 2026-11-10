@@ -175,6 +175,9 @@ class AxelSettings(BaseSettings):
     # "alpaca" reads real read-only IEX bars for the stocks section and narrows
     # the runtime to stocks; "synthetic" is the offline default.
     paper_data_source: Literal["synthetic", "alpaca"] = "synthetic"
+    # "alpaca" sends approved orders to the Alpaca paper endpoint so fills and
+    # slippage are real; "internal" keeps the deterministic offline fill.
+    paper_execution: Literal["internal", "alpaca"] = "internal"
     paper_runtime_interval_seconds: float = 5.0
     paper_runtime_seed: int = 7
     paper_runtime_signal_ttl_seconds: int = 900
