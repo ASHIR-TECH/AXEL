@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
-      LOOP_SECONDS: ${{ github.event.inputs.seconds || '3480' }}
+      LOOP_SECONDS: ${{ inputs.seconds || '3480' }}
       PING_INTERVAL_SECONDS: "240"
     steps:
       - name: Hold the box awake
@@ -51,6 +51,7 @@ jobs:
           loop_seconds = int(os.environ.get("LOOP_SECONDS", "3480"))
           interval = max(10, int(os.environ.get("PING_INTERVAL_SECONDS", "240")))
           deadline = time.monotonic() + loop_seconds
+          print(f"window_s={loop_seconds} interval_s={interval}", flush=True)
 
           def ping() -> str:
               session = {"id": None}
