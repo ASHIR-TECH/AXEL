@@ -33,7 +33,8 @@ from axel.db.models import (
     TradeProposalModel,
 )
 from axel.runtime import audit
-from axel.runtime.paper_feed import SECTION_SYMBOLS, latest_price, recent_closes
+from axel.runtime.paper_feed import latest_price, recent_closes
+from axel.runtime.sections import trading_sections
 
 ANALYSTS: tuple[str, ...] = (
     "TECHNICAL",
@@ -157,7 +158,7 @@ def generate_signals(session: Session, *, now: datetime | None = None) -> int:
     ttl = settings.paper_runtime_signal_ttl_seconds
     written = 0
 
-    for section, symbols in SECTION_SYMBOLS.items():
+    for section, symbols in trading_sections().items():
         closes = recent_closes(session, symbols[0], 40)
         for analyst in ANALYSTS:
             direction, strength, rationale = _signal_for(analyst, section, closes)
@@ -247,7 +248,7 @@ def propose(session: Session, *, now: datetime | None = None) -> int:
     window = timedelta(seconds=settings.paper_runtime_signal_ttl_seconds)
     created = 0
 
-    for section, symbols in SECTION_SYMBOLS.items():
+    for section, symbols in trading_sections().items():
         if _has_recent_proposal(session, section, stamp, cooldown):
             continue
         signal = _best_signal(session, section, stamp - window)

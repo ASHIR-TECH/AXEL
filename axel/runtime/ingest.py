@@ -70,6 +70,11 @@ def ingest_once(
     interval = interval_seconds or settings.paper_runtime_interval_seconds
     run_seed = seed if seed is not None else settings.paper_runtime_seed
 
+    if settings.paper_data_source == "alpaca":
+        from axel.runtime.alpaca_feed import ingest_alpaca_once
+
+        return ingest_alpaca_once(session, now=stamp)
+
     symbols = all_symbols()
     # One query for every previous close, one batched insert for the cycle.
     # The previous implementation issued two SELECTs and one INSERT per bar.

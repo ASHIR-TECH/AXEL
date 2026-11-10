@@ -172,6 +172,9 @@ class AxelSettings(BaseSettings):
 
     # Deterministic paper runtime. The workers only run when environment is
     # "paper"; the seed makes synthetic bars reproducible across restarts.
+    # "alpaca" reads real read-only IEX bars for the stocks section and narrows
+    # the runtime to stocks; "synthetic" is the offline default.
+    paper_data_source: Literal["synthetic", "alpaca"] = "synthetic"
     paper_runtime_interval_seconds: float = 5.0
     paper_runtime_seed: int = 7
     paper_runtime_signal_ttl_seconds: int = 900
