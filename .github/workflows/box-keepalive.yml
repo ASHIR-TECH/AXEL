@@ -1,0 +1,115 @@
+name: box keepalive
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: box-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping the box MCP
+        env:
+          BOX_TOKEN: ${{ secrets.BOX_TOKEN }}
+          BOX_MCP_URL: https://mcp.box.simular.ai/mcp
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.request
+
+          token = os.environ.get("BOX_TOKEN", "").strip()
+          if not token:
+              print("BOX_TOKEN secret is not set; skipping this run")
+              sys.exit(0)
+
+          url = os.environ.get("BOX_MCP_URL", "https://mcp.box.simular.ai/mcp")
+          protocol = "2025-06-18"
+          session: dict[str, str | None] = {"id": None}
+
+          def headers_for() -> dict[str, str]:
+              headers = {
+                  "Authorization": f"Bearer {token}",
+                  "Content-Type": "application/json",
+                  "Accept": "application/json, text/event-stream",
+              }
+              if session["id"]:
+                  headers["Mcp-Session-Id"] = str(session["id"])
+                  headers["MCP-Protocol-Version"] = protocol
+              return headers
+
+          def post(payload: dict) -> dict:
+              request = urllib.request.Request(
+                  url,
+                  data=json.dumps(payload).encode(),
+                  headers=headers_for(),
+                  method="POST",
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  sid = response.headers.get("mcp-session-id")
+                  if sid:
+                      session["id"] = sid
+                  body = response.read().decode("utf-8", "replace")
+                  ctype = response.headers.get("content-type", "")
+              if "text/event-stream" in ctype:
+                  for line in body.splitlines():
+                      if line.startswith("data:"):
+                          data = json.loads(line[5:].strip())
+                          if data.get("id") == payload.get("id"):
+                              return data
+                  raise RuntimeError("no matching SSE response")
+              return json.loads(body)
+
+          init = post(
+              {
+                  "jsonrpc": "2.0",
+                  "id": 1,
+                  "method": "initialize",
+                  "params": {
+                      "protocolVersion": protocol,
+                      "capabilities": {},
+                      "clientInfo": {"name": "axel-keepalive", "version": "1"},
+                  },
+              }
+          )
+          if "error" in init:
+              raise RuntimeError(init["error"])
+
+          note = urllib.request.Request(
+              url,
+              data=json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}).encode(),
+              headers=headers_for(),
+              method="POST",
+          )
+          urllib.request.urlopen(note, timeout=30).read()
+
+          result = post(
+              {
+                  "jsonrpc": "2.0",
+                  "id": 2,
+                  "method": "tools/call",
+                  "params": {
+                      "name": "shell",
+                      "arguments": {"command": "date -u +%FT%TZ", "timeout_s": 30},
+                  },
+              }
+          )
+          if "error" in result:
+              raise RuntimeError(result["error"])
+          text = "".join(
+              item.get("text", "")
+              for item in result.get("result", {}).get("content", [])
+              if item.get("type") == "text"
+          )
+          print(f"box responded: {text.strip()}")
+          PY
