@@ -72,6 +72,31 @@ real run: create a fresh database, point `DATABASE_URL` at it, run
 
 `axel.operations.paper_soak` evaluates this evidence with fail-closed rules. It does **not** alter live-trading settings or send an order.
 
+## Public read-only dashboard
+
+The soak publishes a curated snapshot for a static dashboard. It never exposes
+keys, account identifiers, or agent reasoning, and the box remains the source of
+truth.
+
+- Page: <https://ashir-tech.github.io/AXEL/>
+- Data: `soak-data` branch, `snapshot.json` (served via
+  `raw.githubusercontent.com` so the Pages site never rebuilds on data changes).
+- Snapshot source: `scripts/export_soak_snapshot.py` (read-only, database only).
+- Publisher: `axel-soak-publish.timer` on the box runs
+  `/usr/local/sbin/axel-soak-publish.sh` every 5 minutes. It amends a single
+  commit and force-pushes only when the substantive fields changed (volatile
+  timestamps such as `generated_at`, `account.as_of` and worker `last_seen` are
+  ignored). The box authenticates with a repo-scoped token at
+  `/home/user/.ssh/axel_github_token` (mode 600) through
+  `/home/user/axel-ops/git-askpass.sh`, and the service needs the same
+  `HTTPS_PROXY` drop-in as the workers.
+- The equity curve starts at the first snapshot written after the ledger was
+  anchored to broker cash, so pre-anchor balances cannot distort the run.
+
+If publishing stops, the page shows `stale` after 15 minutes instead of hiding
+the gap. Check `systemctl status axel-soak-publish.timer` and the box's proxy
+before touching the data branch.
+
 ## Promotion gate
 
 All of the following must be evidenced before Phase 6 is considered:
