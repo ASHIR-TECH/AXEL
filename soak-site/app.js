@@ -236,7 +236,7 @@ function drawChart(d) {
     ctx.moveTo(pad.left, yy);
     ctx.lineTo(W - pad.right, yy);
     ctx.stroke();
-    ctx.fillText(money(value, 0), 4, yy + 3);
+    ctx.fillText(money(value, max - min < 10 ? 2 : 0), 4, yy + 3);
   }
 
   const first = new Date(points[0].t);
