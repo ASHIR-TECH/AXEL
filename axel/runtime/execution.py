@@ -15,9 +15,10 @@ from __future__ import annotations
 import contextlib
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from datetime import time as clock_time
 from typing import Protocol
+from zoneinfo import ZoneInfo
 
 from axel.core.config import settings
 from axel.core.contracts import Order, RiskDecision
@@ -25,8 +26,11 @@ from axel.core.types import OrderSide, RiskVerdict
 from axel.execution.alpaca import AlpacaAdapter
 
 SLIPPAGE_BPS = 2.0
-MARKET_OPEN = clock_time(13, 30)
-MARKET_CLOSE = clock_time(20, 0)
+# US regular session, expressed in the exchange's local clock so that the
+# 09:30–16:00 window follows daylight saving instead of drifting by an hour.
+MARKET_TZ = ZoneInfo("America/New_York")
+MARKET_OPEN = clock_time(9, 30)
+MARKET_CLOSE = clock_time(16, 0)
 
 
 @dataclass(frozen=True)
@@ -55,8 +59,8 @@ class ExecutionBackend(Protocol):
 
 
 def market_is_open(now: datetime) -> bool:
-    """US regular-hours check (holidays fall through to a deferred order)."""
-    stamp = now.astimezone(UTC)
+    """US regular-hours check in exchange time (holidays defer the order)."""
+    stamp = now.astimezone(MARKET_TZ)
     if stamp.weekday() >= 5:
         return False
     return MARKET_OPEN <= stamp.time() <= MARKET_CLOSE

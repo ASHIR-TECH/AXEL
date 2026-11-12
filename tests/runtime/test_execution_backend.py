@@ -77,11 +77,18 @@ def test_internal_backend_applies_slippage_adversely() -> None:
 @pytest.mark.parametrize(
     ("stamp", "expected"),
     [
-        (datetime(2026, 11, 11, 13, 29, tzinfo=UTC), False),
-        (datetime(2026, 11, 11, 13, 30, tzinfo=UTC), True),
-        (datetime(2026, 11, 11, 20, 0, tzinfo=UTC), True),
-        (datetime(2026, 11, 11, 20, 1, tzinfo=UTC), False),
+        # November: US Eastern is on standard time (UTC-5), so the session is
+        # 14:30–21:00 UTC.
+        (datetime(2026, 11, 11, 14, 29, tzinfo=UTC), False),
+        (datetime(2026, 11, 11, 14, 30, tzinfo=UTC), True),
+        (datetime(2026, 11, 11, 21, 0, tzinfo=UTC), True),
+        (datetime(2026, 11, 11, 21, 1, tzinfo=UTC), False),
         (datetime(2026, 11, 14, 15, 0, tzinfo=UTC), False),  # Saturday
+        # July: daylight time (UTC-4), so the session is 13:30–20:00 UTC.
+        (datetime(2026, 7, 15, 13, 29, tzinfo=UTC), False),
+        (datetime(2026, 7, 15, 13, 30, tzinfo=UTC), True),
+        (datetime(2026, 7, 15, 20, 0, tzinfo=UTC), True),
+        (datetime(2026, 7, 15, 20, 1, tzinfo=UTC), False),
     ],
 )
 def test_market_is_open(stamp: datetime, expected: bool) -> None:
