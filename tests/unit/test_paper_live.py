@@ -1,7 +1,7 @@
 """Tests for the live Alpaca paper soak status probe.
 
-These tests exercise the state logic of :func:`scripts.paper_live.main` without
-making real network calls. The production probe itself requires egress to Alpaca.
+These tests exercise the order-summary logic of :func:`scripts.paper_live.main`
+without network access.
 """
 
 from unittest import mock
@@ -9,39 +9,39 @@ from unittest import mock
 from scripts.paper_live import main
 
 
-def test_main_counts_fills_and_defers(monkeypatch) -> None:
+def test_main_counts_fills_and_working_orders(monkeypatch) -> None:
     monkeypatch.setenv("ALPACA_PAPER_API_KEY", "fake-key")
-    positions = [
+    orders = [
         {"symbol": "AAPL", "status": "filled"},
         {"symbol": "MSFT", "status": "partially_filled"},
         {"symbol": "TSLA", "status": "new"},
         {"symbol": "NVDA", "status": "canceled"},
     ]
-    session = mock.Mock()
-    session.get.return_value.json.return_value = positions
-    with mock.patch("scripts.paper_live.requests", session):
+    client = mock.Mock()
+    client.get.return_value.json.return_value = orders
+    with mock.patch("scripts.paper_live.httpx", client):
         rc = main()
 
     assert rc == 0
-    assert session.get.call_count == 2
+    assert client.get.call_count == 1
 
 
-def test_main_alarms_on_too_many_unfilled(monkeypatch) -> None:
+def test_main_alarms_on_too_many_working_orders(monkeypatch) -> None:
     monkeypatch.setenv("ALPACA_PAPER_API_KEY", "fake-key")
-    positions = [{"symbol": f"S{i}", "status": "new", "qty": 0.0} for i in range(21)]
-    session = mock.Mock()
-    session.get.return_value.json.return_value = positions
-    with mock.patch("scripts.paper_live.requests", session):
+    orders = [{"symbol": f"S{i}", "status": "new"} for i in range(21)]
+    client = mock.Mock()
+    client.get.return_value.json.return_value = orders
+    with mock.patch("scripts.paper_live.httpx", client):
         rc = main()
 
     assert rc == 1
 
 
-def test_main_crashes_gracefully_when_unreachable(monkeypatch) -> None:
+def test_main_fails_cleanly_when_unreachable(monkeypatch) -> None:
     monkeypatch.setenv("ALPACA_PAPER_API_KEY", "fake-key")
-    session = mock.Mock()
-    session.get.side_effect = ConnectionError("no network")
-    with mock.patch("scripts.paper_live.requests", session):
+    client = mock.Mock()
+    client.get.side_effect = ConnectionError("no network")
+    with mock.patch("scripts.paper_live.httpx", client):
         rc = main()
 
     assert rc == 2

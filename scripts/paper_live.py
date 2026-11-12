@@ -1,23 +1,25 @@
 # --- 56-day Alpaca paper soak: live execution ---
 #
-# This section is the gate that starts the official 56-day run. It reads
-# REAL market data from Alpaca (stocks section only) and sends APPROVED orders
-# to the Alpaca **paper** endpoint. Slippage is then observed rather than
-# modeled, so fill quality can be validated over the 56-day window.
+# Status probe for the official 56-day run. It only reads the Alpaca paper
+# orders and reports how many filled and how many are still working.
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from os import environ
 
-import requests
+import httpx
 
 ALPACA_BASE_URL = "https://paper-api.alpaca.markets"
+SOAK_STARTED_AT = datetime(2026, 11, 12, 0, 0, tzinfo=UTC)
+WORKING_STATES = ("new", "accepted", "held", "pending_new", "partially_filled")
+FILLED_STATES = ("filled", "partially_filled")
 
-# Evaluated lazily so unit tests can set ALPACA_PAPER_API_KEY before calling
-# main(). The production probe always needs the key at runtime.
 
+def _headers() -> dict[str, str]:
+    """Build auth headers from the environment at call time.
 
-def _headers():
+    Deferred so unit tests can set the key before invoking :func:`main`.
+    """
     return {
         "Authorization": f"Bearer {environ['ALPACA_PAPER_API_KEY']}",
         "Content-Type": "application/json",
@@ -29,42 +31,31 @@ class PaperState:
     """Snapshot of the running 56-day paper test."""
 
     started_at: datetime
-    last_bar_at: datetime | None
-    last_order_at: datetime | None
     filled_orders: int
     unfilled_deferred: int
 
 
 def fetch_state() -> PaperState:
-    """Pull live state from the 56-day paper test.
-
-    Uses the public Alpaca paper-account endpoint for account state and a
-    private webhook for execution state. This is a read-only health probe that
-    runs every 5 minutes.
-    """
-    requests.get(
-        f"{ALPACA_BASE_URL}/v2/account",
+    """Read recent Alpaca paper orders (read-only) and summarise them."""
+    response = httpx.get(
+        f"{ALPACA_BASE_URL}/v2/orders",
+        params={"status": "all", "limit": 500, "direction": "desc"},
         headers=_headers(),
         timeout=15,
     )
-    positions = requests.get(
-        f"{ALPACA_BASE_URL}/v2/position",
-        headers=_headers(),
-        timeout=15,
-    ).json()
+    orders = response.json()
 
-    unfilled = sum(1 for p in positions if p["status"] == "new")
+    working = sum(1 for order in orders if order.get("status") in WORKING_STATES)
+    filled = sum(1 for order in orders if order.get("status") in FILLED_STATES)
     return PaperState(
-        started_at=datetime(2026, 11, 11, 13, 30, tzinfo=UTC),
-        last_bar_at=None,
-        last_order_at=None,
-        filled_orders=sum(1 for p in positions if p["status"] in ("partially_filled", "filled")),
-        unfilled_deferred=unfilled,
+        started_at=SOAK_STARTED_AT,
+        filled_orders=filled,
+        unfilled_deferred=working,
     )
 
 
 def main() -> int:
-    """Print the live state and exit with code 2 if anything looks off."""
+    """Print the live state and exit non-zero if anything looks off."""
     try:
         state = fetch_state()
     except Exception as exc:  # noqa: BLE001
