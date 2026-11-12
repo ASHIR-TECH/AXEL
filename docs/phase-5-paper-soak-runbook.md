@@ -28,6 +28,40 @@ Phase 5 begins the **paper-only observation period**. It is not live-trading app
    docker compose ps
    ```
 
+## Real-data, real-fill paper mode
+
+Two flags select the official 56-day configuration. Both default to the
+offline behaviour, so nothing changes until they are set explicitly:
+
+```dotenv
+PAPER_DATA_SOURCE=alpaca   # real IEX 1-min bars, STOCKS section only
+PAPER_EXECUTION=alpaca     # approved orders go to the Alpaca PAPER endpoint
+```
+
+- `PAPER_DATA_SOURCE=synthetic` (default) keeps the deterministic offline feed
+  for all five sections. `alpaca` narrows the runtime to the `STOCKS` section
+  (`axel.runtime.alpaca_feed`, `axel.runtime.sections`) so no proposal can form
+  on stale synthetic bars.
+- `PAPER_EXECUTION=internal` (default) keeps the modeled fill (reference price
+  plus a 2 bps assumption). `alpaca` submits the already-approved order to
+  `https://paper-api.alpaca.markets` and records the broker's real fill,
+  broker order id and realized slippage (`axel.runtime.execution`).
+- The Alpaca backend refuses to start unless `ALPACA_PAPER=true` and the
+  adapter's base URL contains `paper-api`. It also refuses to trade outside the
+  US regular session, expressed in `America/New_York` so the window follows
+  daylight saving; an order that does not fill is cancelled and the proposal is
+  re-queued as `pending` instead of inventing a fill.
+- `scripts/paper_live.py` reads the paper orders and reports how many filled and
+  how many are still working.
+- On the cloud box the worker units need `HTTPS_PROXY`/`HTTP_PROXY` pointing at
+  the local egress proxy (`http://127.0.0.1:3128`) or every Alpaca call fails
+  with a DNS error; keep it in a systemd drop-in rather than in `.env`.
+
+Start the clock on a clean book so synthetic history cannot be mistaken for the
+real run: create a fresh database, point `DATABASE_URL` at it, run
+`init_db()`, and record the `paper_soak.started` audit marker with
+`feed="alpaca-iex"`, `execution="alpaca-paper"` and the 56-day `window_end`.
+
 ## What to record during the soak
 
 - Every paper trade: forecast probability, final outcome, expected slippage, and realized slippage.
