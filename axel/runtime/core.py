@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from axel.core.config import settings
 from axel.core.contracts import Order, Proposal
 from axel.core.ids import generate_client_order_id, generate_id
 from axel.core.types import OrderSide, OrderState, OrderType, Section, TimeInForce
@@ -51,6 +52,19 @@ SECTION_STARTS: dict[str, float] = {
     "PREDICTIONS": 500.0,
 }
 MAX_HOLD_SECONDS = 300
+
+
+def _initial_equity() -> float:
+    """Opening cash of the paper ledger (matches the broker in Alpaca mode)."""
+    start = float(settings.paper_starting_equity)
+    return start if start > 0 else INITIAL_EQUITY
+
+
+def _section_starts() -> dict[str, float]:
+    """Per-section starting equity, scaled to the configured ledger size."""
+    total = float(sum(SECTION_STARTS.values()))
+    scale = _initial_equity() / total
+    return {section: value * scale for section, value in SECTION_STARTS.items()}
 
 @dataclass(frozen=True)
 class CycleResult:
@@ -110,7 +124,7 @@ def _realized_pnl(session: Session, section: str | None = None) -> float:
 
 def _section_state(session: Session, section: str) -> tuple[float, float, int]:
     """Return ``(nav, unrealized, open_count)`` for one section."""
-    start = SECTION_STARTS[section]
+    start = _section_starts()[section]
     positions = [row for row in _open_positions(session) if str(row.section).upper() == section]
     unrealized = sum(float(row.unrealized_pnl or 0.0) for row in positions)
     realized = _realized_pnl(session, section)
@@ -122,7 +136,7 @@ def _global_nav(session: Session) -> tuple[float, float]:
     """Return ``(nav, unrealized)`` across all sections."""
     nav = 0.0
     unrealized = 0.0
-    for section in SECTION_STARTS:
+    for section in _section_starts():
         section_nav, section_unrealized, _count = _section_state(session, section)
         nav += section_nav
         unrealized += section_unrealized
@@ -527,7 +541,7 @@ def _evaluate_pending(
             SectionRiskState(
                 section=Section(section.lower()),
                 section_nav=section_nav,
-                start_of_day_equity=SECTION_STARTS[section],
+                start_of_day_equity=_section_starts()[section],
                 realized_pnl=_realized_pnl(session, section),
                 unrealized_pnl=section_unrealized,
                 active_positions_count=section_count,
@@ -582,13 +596,61 @@ def _evaluate_pending(
     return evaluated, approved, rejected, orders
 
 
+def _reconcile_broker(
+    session: Session,
+    backend: ExecutionBackend,
+    *,
+    now: datetime,
+    nav: float,
+) -> None:
+    """Log when the local ledger drifts from the broker's paper account.
+
+    The backend only exposes ``account_summary`` for real venues; the internal
+    backend has no broker to compare against.
+    """
+    summary = getattr(backend, "account_summary", None)
+    if summary is None:
+        return
+    data = summary()
+    if not data:
+        return
+    try:
+        broker_equity = float(data.get("total_equity") or 0.0)
+        broker_cash = float(data.get("cash") or 0.0)
+    except (TypeError, ValueError):
+        return
+    if broker_equity <= 0:
+        return
+    delta = nav - broker_equity
+    if abs(delta) <= max(1.0, broker_equity * 0.01):
+        return
+    audit.record(
+        session,
+        event_type="paper.reconcile",
+        actor="axel.runtime.core",
+        message=(
+            f"ledger drift · local_nav={nav:.2f} broker_equity={broker_equity:.2f} "
+            f"delta={delta:+.2f} · broker_cash={broker_cash:.2f}"
+        ),
+        logger="axel.runtime.core",
+        channel="SYS",
+        level="WARN",
+        timestamp=now,
+        local_nav=round(nav, 6),
+        broker_equity=round(broker_equity, 6),
+        broker_cash=round(broker_cash, 6),
+        delta=round(delta, 6),
+    )
+
+
 def _write_snapshots(
     session: Session, *, now: datetime, halted: bool
 ) -> tuple[float, float]:
     nav, unrealized = _global_nav(session)
     previous = _latest_global(session)
-    previous_hwm = float(previous.high_water_mark) if previous is not None else INITIAL_EQUITY
-    hwm = max(INITIAL_EQUITY, previous_hwm, nav)
+    start_equity = _initial_equity()
+    previous_hwm = float(previous.high_water_mark) if previous is not None else start_equity
+    hwm = max(start_equity, previous_hwm, nav)
     drawdown = (hwm - nav) / hwm if hwm > 0 else 0.0
     stamp = int(now.timestamp() * 1000)
     gross = _gross_exposure(session)
@@ -607,7 +669,7 @@ def _write_snapshots(
             high_water_mark=round(hwm, 6),
         )
     )
-    for section, start in SECTION_STARTS.items():
+    for section, start in _section_starts().items():
         section_nav, section_unrealized, _count = _section_state(session, section)
         previous_section = _latest_section(session, section)
         section_hwm = max(
@@ -671,8 +733,9 @@ def core_once(
 
     nav_before, _unrealized = _global_nav(session)
     previous = _latest_global(session)
-    previous_hwm = float(previous.high_water_mark) if previous is not None else INITIAL_EQUITY
-    switch.set_high_water_mark(max(INITIAL_EQUITY, previous_hwm))
+    start_equity = _initial_equity()
+    previous_hwm = float(previous.high_water_mark) if previous is not None else start_equity
+    switch.set_high_water_mark(max(start_equity, previous_hwm))
     halted, drawdown = switch.check_equity(nav_before)
     active = _active_kill(session)
     if halted and active is None:
@@ -708,6 +771,7 @@ def core_once(
     )
     _mark_positions(session)
     nav, drawdown = _write_snapshots(session, now=stamp, halted=halted)
+    _reconcile_broker(session, runner, now=stamp, nav=nav)
 
     return CycleResult(
         evaluated=evaluated,

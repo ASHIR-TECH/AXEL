@@ -177,6 +177,16 @@ class AlpacaBackend:
             state="filled",
         )
 
+    def account_summary(self) -> dict[str, float] | None:
+        """Broker equity/cash for reconciliation; ``None`` if unreadable.
+
+        Read-only, so a failed call only skips the reconciliation event.
+        """
+        try:
+            return self.adapter.get_account_summary()
+        except Exception:  # noqa: BLE001 — reconciliation must not stop the soak
+            return None
+
 
 def build_backend() -> ExecutionBackend:
     """Return the backend selected by ``PAPER_EXECUTION``."""

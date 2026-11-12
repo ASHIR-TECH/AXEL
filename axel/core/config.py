@@ -178,6 +178,9 @@ class AxelSettings(BaseSettings):
     # "alpaca" sends approved orders to the Alpaca paper endpoint so fills and
     # slippage are real; "internal" keeps the deterministic offline fill.
     paper_execution: Literal["internal", "alpaca"] = "internal"
+    # Cash the paper ledger starts from. Keep it equal to the broker paper
+    # account's cash so local NAV and broker equity track each other.
+    paper_starting_equity: float = 10_000.0
     paper_runtime_interval_seconds: float = 5.0
     paper_runtime_seed: int = 7
     paper_runtime_signal_ttl_seconds: int = 900

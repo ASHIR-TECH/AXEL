@@ -17,7 +17,14 @@ from axel.core.contracts import Order, Proposal
 from axel.core.ids import generate_client_order_id
 from axel.core.types import OrderSide, OrderState, OrderType, Section, TimeInForce, TradingMode
 from axel.db.base import Base
-from axel.db.models import FillModel, OrderModel, PositionModel, TradeProposalModel
+from axel.db.models import (
+    AuditLogModel,
+    EquitySnapshotModel,
+    FillModel,
+    OrderModel,
+    PositionModel,
+    TradeProposalModel,
+)
 from axel.risk.killswitch import KillSwitch
 from axel.runtime.core import core_once
 from axel.runtime.execution import (
@@ -287,3 +294,69 @@ def test_core_uses_the_alpaca_fill_price_and_broker_id(session_factory, tmp_path
         assert fill.price == pytest.approx(101.25)
         position = session.execute(select(PositionModel)).scalar_one()
         assert position.entry_price == pytest.approx(101.25)
+
+
+class _ReconcilingBackend:
+    """Pretends to be a real venue that reports a broker account."""
+
+    name = "alpaca"
+
+    def __init__(self, equity: float) -> None:
+        self.equity = equity
+
+    def available(self, now: datetime) -> bool:
+        return False
+
+    def execute(self, order: Order, *, reference_price: float, now: datetime):
+        return None
+
+    def account_summary(self) -> dict[str, float]:
+        return {"total_equity": self.equity, "cash": self.equity, "buying_power": self.equity * 4}
+
+
+def test_ledger_starts_from_the_broker_cash(session_factory, tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "paper_starting_equity", 100_000.0)
+    now = datetime(2026, 11, 8, 12, 0, tzinfo=UTC)
+    killswitch = KillSwitch(state_file_path=tmp_path / "killswitch.json")
+    with session_factory() as session:
+        result = core_once(session, now=now, killswitch=killswitch, backend=_DeferringBackend())
+        session.commit()
+
+        assert result.nav == pytest.approx(100_000.0)
+        snapshot = session.execute(
+            select(EquitySnapshotModel).where(EquitySnapshotModel.section == "global")
+        ).scalar_one()
+        assert snapshot.nav == pytest.approx(100_000.0)
+        assert snapshot.high_water_mark == pytest.approx(100_000.0)
+
+
+def test_reconcile_logs_only_when_the_ledger_drifts(session_factory, tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "paper_starting_equity", 100_000.0)
+    now = datetime(2026, 11, 8, 12, 0, tzinfo=UTC)
+    killswitch = KillSwitch(state_file_path=tmp_path / "killswitch.json")
+
+    with session_factory() as session:
+        core_once(
+            session,
+            now=now,
+            killswitch=killswitch,
+            backend=_ReconcilingBackend(99_900.0),
+        )
+        session.commit()
+        drift = session.execute(
+            select(AuditLogModel).where(AuditLogModel.event_type == "paper.reconcile")
+        ).scalars().all()
+        assert drift == []
+
+        core_once(
+            session,
+            now=now + timedelta(seconds=60),
+            killswitch=killswitch,
+            backend=_ReconcilingBackend(50_000.0),
+        )
+        session.commit()
+        drift = session.execute(
+            select(AuditLogModel).where(AuditLogModel.event_type == "paper.reconcile")
+        ).scalars().all()
+        assert len(drift) == 1
+        assert drift[0].payload["delta"] == pytest.approx(50_000.0)
