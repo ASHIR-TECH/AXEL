@@ -143,6 +143,33 @@ def test_snapshot_carries_the_paper_evidence(monkeypatch) -> None:
     assert data["workers"]["core-worker"]["ratio"] == 1.0
 
 
+def test_curve_starts_when_the_ledger_is_anchored(monkeypatch) -> None:
+    monkeypatch.setattr("axel.core.config.settings.paper_starting_equity", 100_000.0)
+    with _session() as session:
+        session.add(
+            EquitySnapshotModel(
+                id="old",
+                timestamp=NOW - timedelta(days=1),
+                section="global",
+                nav=10_000.0,
+                cash=10_000.0,
+            )
+        )
+        session.add(
+            EquitySnapshotModel(
+                id="new",
+                timestamp=NOW,
+                section="global",
+                nav=100_000.0,
+                cash=100_000.0,
+            )
+        )
+        session.commit()
+        data = build_snapshot(session, now=NOW)
+
+    assert [point["nav"] for point in data["equity_curve"]] == [100_000.0]
+
+
 def test_snapshot_never_leaks_secret_material() -> None:
     with _session() as session:
         _seed(session)

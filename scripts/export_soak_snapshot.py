@@ -115,12 +115,26 @@ def build_snapshot(session: Session, *, now: datetime | None = None) -> dict:
         "as_of": _iso(latest.timestamp if latest else None),
     }
 
+    curve_stmt = select(EquitySnapshotModel).where(EquitySnapshotModel.section == "global")
+    # Ignore snapshots written before the ledger was anchored to the broker's
+    # cash, otherwise the curve jumps from the old synthetic size to the real
+    # paper balance.
+    start_equity = _num(settings.paper_starting_equity)
+    if start_equity > 0:
+        anchored = session.execute(
+            select(EquitySnapshotModel.timestamp)
+            .where(
+                EquitySnapshotModel.section == "global",
+                EquitySnapshotModel.nav >= start_equity * 0.5,
+            )
+            .order_by(EquitySnapshotModel.timestamp.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if anchored is not None:
+            curve_stmt = curve_stmt.where(EquitySnapshotModel.timestamp >= _utc(anchored))
     curve_rows = (
         session.execute(
-            select(EquitySnapshotModel)
-            .where(EquitySnapshotModel.section == "global")
-            .order_by(desc(EquitySnapshotModel.timestamp))
-            .limit(EQUITY_POINTS)
+            curve_stmt.order_by(desc(EquitySnapshotModel.timestamp)).limit(EQUITY_POINTS)
         )
         .scalars()
         .all()
