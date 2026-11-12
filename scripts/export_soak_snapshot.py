@@ -199,6 +199,7 @@ def build_snapshot(session: Session, *, now: datetime | None = None) -> dict:
             "days_elapsed": days_elapsed,
             "days_remaining": max(0.0, days_remaining),
             "mode": settings.environment,
+            "starting_equity": round(_num(settings.paper_starting_equity) or 10_000.0, 2),
             "feed": "alpaca-iex" if settings.paper_data_source == "alpaca" else "synthetic",
             "execution": settings.paper_execution,
             "sections": ["STOCKS"],

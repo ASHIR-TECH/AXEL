@@ -127,6 +127,7 @@ def test_snapshot_carries_the_paper_evidence(monkeypatch) -> None:
         data = build_snapshot(session, now=NOW)
 
     assert data["meta"]["feed"] == "alpaca-iex"
+    assert data["meta"]["starting_equity"] > 0
     assert data["meta"]["days_elapsed"] == 2.0
     assert data["meta"]["days_remaining"] == 54.0
     assert data["account"]["nav"] == 101_250.0
