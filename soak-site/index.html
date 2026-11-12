@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AXEL · Paper Soak</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="shell">
+    <div class="brand">
+      <div class="logo">AX</div>
+      <div>
+        <h1>AXEL <span>paper soak</span></h1>
+        <p class="sub" id="run-line">loading run…</p>
+      </div>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">connecting</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-main card">
+        <p class="label">Net asset value</p>
+        <p class="big" id="nav">—</p>
+        <p class="delta" id="nav-delta">&nbsp;</p>
+        <div class="hero-meta">
+          <span>Cash <strong id="cash">—</strong></span>
+          <span>HWM <strong id="hwm">—</strong></span>
+          <span>Drawdown <strong id="drawdown">—</strong></span>
+        </div>
+      </div>
+      <div class="hero-side">
+        <div class="card mini">
+          <p class="label">Realized P&amp;L</p>
+          <p class="value" id="realized">—</p>
+        </div>
+        <div class="card mini">
+          <p class="label">Unrealized P&amp;L</p>
+          <p class="value" id="unrealized">—</p>
+        </div>
+        <div class="card mini wide">
+          <p class="label">Soak window</p>
+          <p class="value" id="window">—</p>
+          <div class="progress"><span id="progress-bar"></span></div>
+          <p class="tiny" id="window-sub">&nbsp;</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card chart-card">
+      <div class="card-head">
+        <h2>Equity curve</h2>
+        <span class="tiny" id="curve-range">—</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart" aria-label="Equity curve"></canvas>
+        <p class="empty" id="chart-empty">Waiting for the first equity points…</p>
+      </div>
+    </section>
+
+    <section class="stats" id="stats">
+      <div class="card stat"><p class="label">Proposals</p><p class="value" id="s-proposals">—</p></div>
+      <div class="card stat"><p class="label">Orders</p><p class="value" id="s-orders">—</p></div>
+      <div class="card stat"><p class="label">Broker fills</p><p class="value" id="s-fills">—</p></div>
+      <div class="card stat"><p class="label">Closed trades</p><p class="value" id="s-closed">—</p></div>
+      <div class="card stat"><p class="label">Win rate</p><p class="value" id="s-winrate">—</p></div>
+      <div class="card stat"><p class="label">Mean slippage</p><p class="value" id="s-slip">—</p></div>
+      <div class="card stat"><p class="label">Coverage</p><p class="value" id="s-coverage">—</p></div>
+    </section>
+
+    <section class="card table-card">
+      <div class="card-head">
+        <h2>Open positions</h2>
+        <span class="tiny" id="pos-count">—</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Symbol</th><th>Section</th><th>Side</th><th class="num">Qty</th><th class="num">Entry</th><th class="num">Price</th><th class="num">Unrealized</th><th>Opened</th></tr>
+          </thead>
+          <tbody id="positions"></tbody>
+        </table>
+        <p class="empty" id="pos-empty">No open positions yet.</p>
+      </div>
+    </section>
+
+    <section class="card table-card">
+      <div class="card-head">
+        <h2>Recent closed trades</h2>
+        <span class="tiny" id="trade-count">—</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Closed</th><th>Symbol</th><th>Section</th><th class="num">Qty</th><th class="num">Entry</th><th class="num">Exit</th><th class="num">P&amp;L</th><th>Reason</th></tr>
+          </thead>
+          <tbody id="trades"></tbody>
+        </table>
+        <p class="empty" id="trade-empty">No closed trades yet.</p>
+      </div>
+    </section>
+
+    <section class="card workers-card">
+      <div class="card-head">
+        <h2>Runtime workers</h2>
+        <span class="tiny" id="coverage-note">—</span>
+      </div>
+      <div class="workers" id="workers"></div>
+    </section>
+  </main>
+
+  <footer class="shell foot">
+    <span id="generated">—</span>
+    <span>·</span>
+    <span id="feed">—</span>
+    <span>·</span>
+    <span>public read-only · no keys in the browser</span>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
